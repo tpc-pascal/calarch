@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a1b2e"/>
+      <stop offset="100%" stop-color="#0f0f1a"/>
+    </linearGradient>
+    <linearGradient id="cpu" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7dcfff"/>
+      <stop offset="100%" stop-color="#89b4fa"/>
+    </linearGradient>
+    <linearGradient id="flame" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#f38ba8"/>
+      <stop offset="50%" stop-color="#fab387"/>
+      <stop offset="100%" stop-color="#f9e2af"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#a6e3a1" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#89b4fa" stop-opacity="0.15"/>
+    </linearGradient>
+  </defs>
+  <circle cx="200" cy="200" r="195" fill="url(#bg)" stroke="#313244" stroke-width="2"/>
+  <circle cx="200" cy="200" r="160" fill="none" stroke="url(#ring)" stroke-width="1.5"/>
+  <circle cx="200" cy="200" r="130" fill="none" stroke="url(#ring)" stroke-width="1"/>
+  <g transform="translate(200,178)" fill="none" stroke="url(#cpu)" stroke-width="3">
+    <rect x="-45" y="-35" width="90" height="70" rx="8" ry="8" fill="#1e1e2e" stroke="url(#cpu)" stroke-width="2.5"/>
+    <rect x="-28" y="-22" width="56" height="44" rx="4" ry="4" fill="none" stroke="#7dcfff" stroke-width="1" stroke-opacity="0.4"/>
+    <rect x="-20" y="-14" width="14" height="12" rx="1" fill="#7dcfff" fill-opacity="0.2"/>
+    <rect x="6" y="-14" width="14" height="12" rx="1" fill="#7dcfff" fill-opacity="0.2"/>
+    <rect x="-20" y="6" width="14" height="12" rx="1" fill="#7dcfff" fill-opacity="0.2"/>
+    <rect x="6" y="6" width="14" height="12" rx="1" fill="#7dcfff" fill-opacity="0.2"/>
+    <line x1="-25" y1="-35" x2="-25" y2="-48" stroke="url(#cpu)" stroke-width="2"/>
+    <line x1="0" y1="-35" x2="0" y2="-48" stroke="url(#cpu)" stroke-width="2"/>
+    <line x1="25" y1="-35" x2="25" y2="-48" stroke="url(#cpu)" stroke-width="2"/>
+    <line x1="-25" y1="35" x2="-25" y2="48" stroke="url(#cpu)" stroke-width="2"/>
+    <line x1="0" y1="35" x2="0" y2="48" stroke="url(#cpu)" stroke-width="2"/>
+    <line x1="25" y1="35" x2="25" y2="48" stroke="url(#cpu)" stroke-width="2"/>
+    <line x1="-45" y1="-20" x2="-58" y2="-20" stroke="url(#cpu)" stroke-width="2"/>
+    <line x1="-45" y1="0" x2="-58" y2="0" stroke="url(#cpu)" stroke-width="2"/>
+    <line x1="-45" y1="20" x2="-58" y2="20" stroke="url(#cpu)" stroke-width="2"/>
+    <line x1="45" y1="-20" x2="58" y2="-20" stroke="url(#cpu)" stroke-width="2"/>
+    <line x1="45" y1="0" x2="58" y2="0" stroke="url(#cpu)" stroke-width="2"/>
+    <line x1="45" y1="20" x2="58" y2="20" stroke="url(#cpu)" stroke-width="2"/>
+  </g>
+  <g transform="translate(200,240)">
+    <path d="M0,30 C-4,20 -10,12 -8,5 C-6,0 -2,-2 0,-8 C2,-2 6,0 8,5 C10,12 4,20 0,30Z" fill="url(#flame)" opacity="0.85"/>
+    <path d="M0,22 C-2,15 -6,10 -4,6 C-2,3 0,1 0,-2 C0,1 2,3 4,6 C6,10 2,15 0,22Z" fill="#1e1e2e" opacity="0.5"/>
+  </g>
+  <text x="200" y="320" font-family="monospace" font-size="72" font-weight="bold" text-anchor="middle" fill="#89b4fa" letter-spacing="4">A</text>
+  <path d="M130,280 Q200,250 270,280" fill="none" stroke="#a6e3a1" stroke-width="1.5" stroke-opacity="0.5"/>
+  <text x="200" y="350" font-family="monospace" font-size="13" font-weight="bold" text-anchor="middle" fill="#6c7086" letter-spacing="6">ARCHCAL</text>
+  <text x="200" y="368" font-family="monospace" font-size="9" text-anchor="middle" fill="#585b70" letter-spacing="2">CF-XZ6 · GOD MODE</text>
+  <circle cx="200" cy="40" r="2.5" fill="#a6e3a1" opacity="0.6"/>
+  <circle cx="360" cy="200" r="2.5" fill="#f38ba8" opacity="0.6"/>
+  <circle cx="200" cy="360" r="2.5" fill="#f9e2af" opacity="0.6"/>
+  <circle cx="40" cy="200" r="2.5" fill="#89b4fa" opacity="0.6"/>
+</svg>
