@@ -1,0 +1,12 @@
+[Unit]
+Description=GodMode Weekly Cleanup — Sunday 23:00
+Documentation=https://github.com/tpc-pascal/calarch
+
+[Timer]
+# Chu Nhat hang tuan luc 23:00
+OnCalendar=Sun 23:00:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

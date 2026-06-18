@@ -1,0 +1,20 @@
+[Unit]
+Description=GodMode Auto Maintenance — Panasonic CF-XZ6
+Documentation=https://github.com/tpc-pascal/calarch
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/godmode-cleanup.sh
+ExecStartPost=/usr/bin/systemd-cat -t godmode-clean echo "GodMode cleanup completed"
+StandardOutput=journal
+StandardError=journal
+
+# An toan: khong kill khi timeout, de script tu ket thuc
+TimeoutStopSec=300
+
+# Low priority: khong anh huong den user
+Nice=19
+IOSchedulingClass=idle
+CPUQuota=50%
+MemoryMax=500M
