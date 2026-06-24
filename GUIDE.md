@@ -1,5 +1,8 @@
 ## Hướng dẫn sử dụng
 
+> **Phiên bản mới (v2.0):** Dashboard real-time + Config center + Safety engine.
+> Xem hướng dẫn chi tiết bên dưới.
+
 ### Yêu cầu
 
 - Panasonic CF-XZ6 (hoặc laptop x86_64 khác)
@@ -59,22 +62,148 @@ bash lib/auto-install-arch.sh --refind /mnt
 
 > Quá trình này chạy hoàn toàn tự động. Không cần can thiệp.
 
-Nếu muốn cài lại hoặc mở Settings Panel:
+## Dashboard (start.sh)
+
+Chạy lệnh sau để mở live dashboard:
 
 ```bash
 cd ~/calarch
-bash start.sh        # TUI Control Center
+bash start.sh
 ```
 
-### Menu chính (start.sh)
+### Màn hình chính
 
 ```
-1) Settings   — 3 submenus (System / Services / Apps)
-2) Games      — minetest, assaultcube, megaglest
-3) Exit
+┌──────── ARCHCAL DASHBOARD ────── real-time ────────┐
+│  CPU [━━━━━━━━━━━━━━━━━━░░░] 62%  52°C  2.81GHz    │
+│  MEM [━━━━━━━━━━━━━━━━━━━━━━] 6.2/7.5 GB           │
+│  Eco: ON 80% | Super: COOL | Affinity: ACTIVE      │
+├─────────────────────────────────────────────────────┤
+│  1 System     CPU | Eco | Undervolt | Thermal       │
+│  2 Services   Docker | KVM | Ollama | Maintenance   │
+│  3 Profiles   Save | Load | Delete                  │
+│  4 Focus      Pomodoro | Website Blocker            │
+│  5 Web        http://localhost:8765                 │
+│  6 Games      minetest | assaultcube | megaglest    │
+│  7 History    Xem / Undo thay đổi                   │
+│  0 Exit                                             │
+├─────────────────────────────────────────────────────┤
+│  ⏳ Grace: undervolt còn 3:42 — Vào menu C confirm  │
+│  🔒 Boot guard: OK (3 boots ổn định)               │
+└─────────────────────────────────────────────────────┘
 ```
 
-### Settings Panel (3 submenus)
+Dashboard tự động refresh mỗi lần bạn quay lại (sau khi chọn menu).
+
+### System Settings — chỉnh tham số
+
+Chọn **1 (System)** → các tùy chọn:
+
+| Mục | Tham số có thể chỉnh |
+|---|---|
+| CPU Affinity | Core cho active window, core cho background, scheduling policy, priority |
+| Super Mode | Cool/Hot threshold (%), debounce (giây), governor (powersave/schedutil/...) |
+| Undervolt | CPU/GPU/Cache (mV, từ -150 đến 0) — **có grace period 5 phút** |
+| Eco Mode | Charge limit % (0-100) |
+| Thermal | Max cstate (1-10) |
+| Pomodoro | Work time, break time, cycles |
+| Blocker | Danh sách site cần chặn (comma-separated) |
+
+**Cách chỉnh:**
+1. Chọn mục → nhập giá trị mới (Enter để giữ nguyên)
+2. Giá trị được validate tự động (range check)
+3. Nếu là critical (undervolt) → grace period 5 phút bắt đầu
+4. Vào menu **C (Confirm Grace)** để xác nhận giữ thay đổi
+
+## Config Center — `calarch.conf`
+
+Mọi tham số tập trung tại 1 file duy nhất ở thư mục gốc:
+
+```bash
+nano ~/calarch/calarch.conf
+```
+
+File có comment đầy đủ, dễ hiểu. Thay đổi được áp dụng qua `core.sh`:
+
+```bash
+# Xem giá trị hiện tại
+bash lib/core.sh list
+
+# Thay đổi 1 giá trị (có validate + safety)
+bash lib/core.sh set UNDERVOLT_CPU -80
+
+# Undo thay đổi cuối
+bash lib/core.sh undo
+
+# Xem lịch sử
+bash lib/core.sh log 10
+```
+
+## Web Dashboard
+
+Mở web dashboard trên trình duyệt (kể cả điện thoại trong cùng LAN):
+
+```bash
+bash lib/web.sh &
+```
+
+Truy cập: [http://localhost:8765](http://localhost:8765)
+
+Hoặc từ dashboard TUI chọn **5 (Web)**.
+
+## Profiles
+
+Lưu cấu hình hiện tại thành profile để nạp lại sau:
+
+```bash
+# Từ dashboard: chọn 3 (Profiles)
+#   Save → nhập tên → lưu
+#   Load → chọn profile → nạp
+
+# Hoặc từ CLI:
+bash lib/core.sh profile save my-config
+bash lib/core.sh profile load my-config
+bash lib/core.sh profile list
+bash lib/core.sh profile delete my-config
+```
+
+Các profile mặc định:
+- **default**: Cân bằng hiệu năng/tiết kiệm
+- **performance**: Undervolt -80mV, schedutil, eco OFF, max cstate=1
+- **battery**: Eco 60%, powersave, affinity core 0, max cstate=8
+
+## Safety Engine
+
+### Grace Period
+Khi thay đổi các tham số critical (undervolt, governor, cstate):
+1. Dashboard hiển thị countdown: `⏳ Grace: undervolt còn 4:32`
+2. Bạn có **5 phút** để xác nhận (menu **C** trong dashboard)
+3. Nếu hết giờ → tự động revert về giá trị cũ
+4. Cũng có thể confirm từ CLI: `bash lib/core.sh grace_confirm UNDERVOLT_CPU`
+
+### Boot Guard
+- Mỗi lần boot, calarch đếm số lần boot
+- Nếu boot fail >2 lần (không vào được dashboard) → tự động rollback config đến bản snapshot cuối
+- Dashboard hiển thị trạng thái: `🔒 Boot guard: OK (3 boots ổn định)`
+
+### Undo / History
+```bash
+# Hoàn tác thay đổi cuối
+bash lib/core.sh undo
+
+# Xem 10 thay đổi gần nhất
+bash lib/core.sh log 10
+```
+
+## Super Mode Daemon
+
+Monitor CPU load mỗi 2 giây:
+- **COOL** (load dưới ngưỡng đủ thời gian): governor tiết kiệm, eco ON
+- **HOT** (load trên ngưỡng hoặc có compiler): governor hiệu năng cao, eco OFF
+- Ngưỡng COOL/HOT, debounce, governor có thể tùy chỉnh trong `calarch.conf`
+- Compiler detection: gcc, rustc, cargo, make -j, npm run build, ninja...
+
+### Settings Panel (3 submenus) — legacy
 
 **1) System**
 | Toggle | ON → | OFF → |
@@ -82,7 +211,7 @@ bash start.sh        # TUI Control Center
 | Super Mode Daemon | chạy daemon nền | kill daemon |
 | CPU Affinity | start event-monitor | kill process |
 | Eco Mode | sạc 80% | sạc 100% |
-| Undervolt | apply -50/-20/-50mV | (cần reboot) |
+| Undervolt | apply từ config (có grace) | (cần reboot) |
 | Auto-rotate | enable iio-sensor-proxy | disable |
 | Touchpad | tapping + scroll | disable |
 
@@ -98,18 +227,11 @@ bash start.sh        # TUI Control Center
 | Toggle | ON → | OFF → |
 |---|---|---|
 | Obsidian Notes | cài + tạo vault ~/notes/ | (giữ nguyên) |
-| Website Blocker | chặn FB/Reddit/YouTube | restore hosts |
+| Website Blocker | chặn từ config | restore hosts |
 | Notes Manager | mở Obsidian vault manager | (giữ nguyên) |
-| Focus Mode | Pomodoro 25/5/4 + chặn web | unblock sites |
+| Focus Mode | Pomodoro + chặn web | unblock sites |
 
-### Super Mode Daemon
-
-Monitor CPU load mỗi 2 giây:
-- **COOL** (load <30% đủ 10s): powersave governor, eco 80%
-- **HOT** (load >70% đủ 5s hoặc có compiler): schedutil governor, eco 100%
-- Compiler detection: gcc, rustc, cargo, make -j, npm run build, ninja...
-
-### An toàn
+## An toàn (Installer & .run)
 
 #### Installer (auto-install-arch.sh)
 - **Backup/rollback**: mọi file hệ thống được backup trước khi sửa, tự động restore nếu lỗi

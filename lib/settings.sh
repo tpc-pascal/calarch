@@ -7,6 +7,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/tui.sh"
+CORE="$SCRIPT_DIR/core.sh"
+CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
+[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
 
 R='\033[0m'; B='\033[1m'; D='\033[0;90m'
 RED='\033[0;31m'; GR='\033[0;32m'; YEL='\033[1;33m'; CY='\033[0;36m'; MG='\033[0;35m'
@@ -62,7 +65,12 @@ toggle_eco() {
 }
 toggle_uv() {
     if uv_on; then log_w "Undervolt: reset can reboot"
-    elif has intel-undervolt; then sudo intel-undervolt apply 2>/dev/null && log_ok "Undervolt ON" || log_w "Undervolt fail"; fi
+    elif has intel-undervolt; then
+      "$CORE" set UNDERVOLT_CPU "${UNDERVOLT_CPU:--50}" 2>/dev/null
+      "$CORE" set UNDERVOLT_GPU "${UNDERVOLT_GPU:--20}" 2>/dev/null
+      "$CORE" set UNDERVOLT_CACHE "${UNDERVOLT_CACHE:--50}" 2>/dev/null
+      log_ok "Undervolt applied via core.sh (safety active)"
+    fi
 }
 toggle_rotate() {
     if rotate_on; then
@@ -106,9 +114,15 @@ toggle_block() {
         sudo cp "$HOSTS_BACKUP" /etc/hosts 2>/dev/null; rm -f "$HOSTS_BACKUP"; log_ok "Blocker OFF"
     else
         sudo cp /etc/hosts "$HOSTS_BACKUP" 2>/dev/null
-        for s in facebook.com www.facebook.com twitter.com www.twitter.com x.com www.x.com instagram.com www.instagram.com reddit.com www.reddit.com tiktok.com www.tiktok.com youtube.com www.youtube.com; do
-            echo "127.0.0.1 $s" | sudo tee -a /etc/hosts >/dev/null
-            echo "::1 $s" | sudo tee -a /etc/hosts >/dev/null
+        local sites="${BLOCKER_SITES:-facebook.com,twitter.com,x.com,instagram.com,reddit.com,tiktok.com,youtube.com,netflix.com}"
+        IFS=',' read -ra ADDR <<< "$sites"
+        for entry in "${ADDR[@]}"; do
+            entry=$(echo "$entry" | xargs)
+            [ -n "$entry" ] || continue
+            for s in "$entry" "www.$entry"; do
+                echo "127.0.0.1 $s" | sudo tee -a /etc/hosts >/dev/null
+                echo "::1 $s" | sudo tee -a /etc/hosts >/dev/null
+            done
         done
         log_ok "Blocker ON"
     fi

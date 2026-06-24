@@ -7,13 +7,19 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
+[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+
 PID_FILE="/tmp/super-mode.pid"
 LOG_FILE="/tmp/super-mode.log"
 
-COOL_THRESH=30   # Xuong COOL khi load < 30%
-HOT_THRESH=70    # Len HOT khi load > 70%
-HOT_DEBOUNCE=5   # Giay load >70% lien tuc de len HOT
-COOL_DEBOUNCE=10 # Giay load <30% lien tuc de xuong COOL
+COOL_THRESH="${SUPER_COOL_THRESHOLD:-30}"
+HOT_THRESH="${SUPER_HOT_THRESHOLD:-70}"
+HOT_DEBOUNCE="${SUPER_HOT_DEBOUNCE:-5}"
+COOL_DEBOUNCE="${SUPER_COOL_DEBOUNCE:-10}"
+COOL_GOV="${SUPER_COOL_GOVERNOR:-powersave}"
+HOT_GOV="${SUPER_HOT_GOVERNOR:-schedutil}"
 
 eco_path="/sys/devices/platform/panasonic/eco_mode"
 cool_active=false
@@ -26,7 +32,7 @@ set_cool() {
     if $cool_active; then return; fi
     echo -e "\033[0;34m>>> [COOL] Saving power...\033[0m"
     log "COOL mode"
-    echo powersave | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null 2>&1 || true
+    echo "$COOL_GOV" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null 2>&1 || true
     echo 1 | sudo tee "$eco_path" >/dev/null 2>&1 || true
     cool_active=true
 }
@@ -35,7 +41,7 @@ set_hot() {
     if ! $cool_active; then return; fi
     echo -e "\033[0;31m>>> [HOT] Full performance...\033[0m"
     log "HOT mode"
-    echo schedutil | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null 2>&1 || true
+    echo "$HOT_GOV" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null 2>&1 || true
     echo 0 | sudo tee "$eco_path" >/dev/null 2>&1 || true
     cool_active=false
 }

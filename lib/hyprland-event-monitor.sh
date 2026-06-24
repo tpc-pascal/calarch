@@ -4,17 +4,19 @@ set -uo pipefail
 # HYPRLAND-EVENT-MONITOR.SH
 # Dynamic CPU Affinity Engine — Real-time Window Focus Monitor
 # ----------------------------------------------------------------------------
-# Co che Scientific:
-# Lang nghe socket event cua Hyprland, bat su kien "activewindow>>"
-# de thuc thi dieu phoi CPU affinity, scheduling policy, va I/O priority.
+# Doc cau hinh tu calarch.conf
 # ============================================================================
-# An toan: Chi xu ly khi co su kien thuc su, sleep 0.05s chong qua tai
 
-# --- Cau hinh / Configuration ---
-# Core danh cho ung dung dang Active / Active app cores
-ACTIVE_CORES="0,1"
-# Core danh cho ung dung nen / Background app cores
-BG_CORES="2,3"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
+[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+
+ACTIVE_CORES="${AFFINITY_ACTIVE_CORES:-0,1}"
+BG_CORES="${AFFINITY_BG_CORES:-2,3}"
+ACTIVE_SCHED="${AFFINITY_ACTIVE_SCHED:-rr}"
+ACTIVE_PRIORITY="${AFFINITY_ACTIVE_PRIORITY:-50}"
+ACTIVE_IONICE="${AFFINITY_ACTIVE_IONICE:-0}"
+BG_IONICE="${AFFINITY_BG_IONICE:-5}"
 
 # --- Ham log tien trinh / Process logging ---
 log_affinity() {
@@ -38,15 +40,11 @@ assign_pid_resources() {
     taskset -pc "$cores" "$pid" 2>/dev/null
 
     if [ "$role" = "active" ]; then
-        # SCHED_RR: preemptible real-time, round-robin, priority 50
-        chrt -r -p 50 "$pid" 2>/dev/null
-        # ionice: Best-effort class, priority 0 (cao nhat)
-        ionice -c 2 -n 0 -p "$pid" 2>/dev/null
+        chrt -"${ACTIVE_SCHED:-r}" -p "${ACTIVE_PRIORITY:-50}" "$pid" 2>/dev/null
+        ionice -c 2 -n "${ACTIVE_IONICE:-0}" -p "$pid" 2>/dev/null
     else
-        # SCHED_OTHER: timesharing default, priority 0
         chrt -o -p 0 "$pid" 2>/dev/null
-        # ionice: Best-effort class, priority 5 (thap)
-        ionice -c 2 -n 5 -p "$pid" 2>/dev/null
+        ionice -c 2 -n "${BG_IONICE:-5}" -p "$pid" 2>/dev/null
     fi
 
     log_affinity "$pid" "${role}: cores=${cores}"

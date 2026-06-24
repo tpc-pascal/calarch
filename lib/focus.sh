@@ -16,32 +16,26 @@ log_e()  { echo -e "${RED}[EE]${R} $*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/tui.sh"
+CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
+[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
 
 HOSTS_BACKUP="/tmp/hosts.focus.backup"
-BLOCKLIST=(
-    "facebook.com"
-    "www.facebook.com"
-    "twitter.com"
-    "www.twitter.com"
-    "x.com"
-    "www.x.com"
-    "instagram.com"
-    "www.instagram.com"
-    "reddit.com"
-    "www.reddit.com"
-    "tiktok.com"
-    "www.tiktok.com"
-    "youtube.com"
-    "www.youtube.com"
-    "netflix.com"
-    "www.netflix.com"
-)
+
+# Build blocklist from config (comma-separated -> array)
+BLOCKLIST_SRC="${BLOCKER_SITES:-facebook.com,twitter.com,x.com,instagram.com,reddit.com,tiktok.com,youtube.com,netflix.com}"
+BLOCKLIST=()
+IFS=',' read -ra SITES <<< "$BLOCKLIST_SRC"
+for s in "${SITES[@]}"; do
+  s=$(echo "$s" | xargs)  # trim
+  [ -n "$s" ] || continue
+  BLOCKLIST+=("$s" "www.$s")
+done
 
 # --- Pomodoro Timer ---
 pomodoro_timer() {
-    local work_min="${1:-25}"
-    local break_min="${2:-5}"
-    local cycles="${3:-4}"
+    local work_min="${1:-${POMODORO_WORK_MINUTES:-25}}"
+    local break_min="${2:-${POMODORO_BREAK_MINUTES:-5}}"
+    local cycles="${3:-${POMODORO_CYCLES:-4}}"
 
     echo -e "${MG}=== POMODORO ===${R}"
     echo -e "Work: ${work_min}ph | Break: ${break_min}ph | Cycles: ${cycles}"
@@ -127,7 +121,7 @@ focus_mode() {
 
     echo ""
     log_i "Bat dau Pomodoro..."
-    pomodoro_timer 25 5 4
+    pomodoro_timer "${POMODORO_WORK_MINUTES:-25}" "${POMODORO_BREAK_MINUTES:-5}" "${POMODORO_CYCLES:-4}"
 
     # Khi xong: hoi co mo block khong
     echo ""
