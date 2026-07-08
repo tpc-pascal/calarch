@@ -19,6 +19,10 @@ God-Mode cho Panasonic CF-XZ6 — Arch Linux, Hyprland, CPU Affinity
 - **Dynamic CPU Affinity** — Active window → Core 0,1; Background → Core 2,3
 - **Thermal God-Mode** — Undervolt -50/-20/-50mV, GPU freq 300-750MHz, thermald + TLP
 - **Btrfs + ZRAM 8GB** — Snapper snapshots, scrub timer, fstrim weekly, compress zstd:3
+- **Live Dashboard** — Real-time TUI + Web (localhost:8765) hiển thị CPU temp/freq/load, Eco, Super Mode
+- **Config Center** — Mọi tham số tập trung tại 1 file `calarch.conf`, dễ sửa, có validate + safety
+- **Profile Manager** — Lưu/nạp cấu hình (default, performance, battery)
+- **Safety Engine** — Grace period (auto-revert 5p), boot guard (rollback nếu boot fail), undo history
 - **Settings Panel** — 3 submenus: System (6), Services (4), Apps (4)
 - **Games** — minetest, assaultcube, megaglest (Arch official repo)
 
@@ -28,23 +32,30 @@ God-Mode cho Panasonic CF-XZ6 — Arch Linux, Hyprland, CPU Affinity
 
 ```
 calarch/
-├── start.sh                     # TUI Control Center (1=Settings, 2=Games, 3=Exit)
+├── calarch.conf                 # ⭐ Config trung tâm — sửa tay thoải mái
+├── start.sh                     # Thin wrapper → dashboard.sh
 ├── make.sh                      # Builder → calarch-v*.run
+├── profiles/                    # Preset configs
+│   ├── default.conf
+│   ├── performance.conf
+│   └── battery.conf
+├── web/
+│   └── index.html               # Web dashboard (Chart.js)
 ├── lib/
+│   ├── core.sh                  # ⭐ Config I/O + Validate + Safety + Profile
+│   ├── dashboard.sh             # ⭐ Live TUI dashboard (thay thế start.sh cũ)
+│   ├── web.sh                   # Python HTTP server (localhost:8765)
 │   ├── tui.sh                   # TUI abstraction (dialog / whiptail)
 │   ├── settings.sh              # Settings panel — 14 toggles
-│   ├── super-mode.sh            # Daemon HOT/COOL tự động
+│   ├── super-mode.sh            # Daemon HOT/COOL (đọc từ calarch.conf)
+│   ├── hyprland-event-monitor.sh# CPU Affinity Engine (đọc từ calarch.conf)
 │   ├── install.sh               # God-Mode setup engine
-│   ├── auto-install-arch.sh     # Auto Arch Linux installer (menu + archinstall TUI)
-│   ├── focus.sh                 # Pomodoro timer + website blocker
+│   ├── auto-install-arch.sh     # Auto Arch Linux installer
+│   ├── focus.sh                 # Pomodoro + blocker (đọc từ calarch.conf)
 │   ├── notes.sh                 # Obsidian vault manager
 │   ├── games.sh                 # minetest, assaultcube, megaglest
-│   ├── common.sh, config.sh     # Shared libraries
-│   ├── phase0-detect.sh … phase4-finalize.sh  # 5 install phases
-│   ├── hyprland-event-monitor.sh, cf-xz6-rotator.sh, cfxz6-stylus-calibrate.sh
-│   ├── godmode-cleanup.sh, godmode-recovery.sh
-│   ├── godmode-clean.{service,timer}
-│   └── ollama-override.conf
+│   ├── common.sh, config.sh     # Shared libraries (installer)
+│   └── phase0-detect.sh … phase4-finalize.sh, cf-xz6-rotator.sh, ...
 ├── assets/logo.svg
 ├── .github/workflows/release.yml
 ├── CONTRIBUTING.md, CREDITS.md, GUIDE.md, README.md
@@ -60,11 +71,13 @@ calarch/
 | OS | Arch Linux (linux-zen kernel) |
 | Shell | Bash 5.0+, `set -euo pipefail` |
 | Desktop | Hyprland (Wayland) via JaKooLit |
-| TUI | dialog (preferred) / whiptail (fallback) — via `lib/tui.sh` |
+| TUI | dialog (preferred) / whiptail (fallback) — `lib/tui.sh` |
+| Web | Python HTTP server + Chart.js (localhost:8765) |
 | CPU | taskset, chrt, ananicy-cpp |
 | Thermal | thermald, TLP, intel-undervolt |
 | Storage | Btrfs (zstd:3, noatime), ZRAM 8GB (zstd) |
 | AI | Ollama (qwen2.5-coder) + OpenCode |
+| Safety | Grace period auto-revert, boot guard, undo history, config validation |
 | CI/CD | GitHub Actions → .run release |
 | Device | Panasonic CF-XZ6 (Core i5-7300U, 8GB LPDDR3, HD620) |
 
@@ -79,39 +92,61 @@ bash calarch-v1.0.run               # auto-detect: ISO → menu, installed → s
 # Từ source
 git clone https://github.com/tpc-pascal/calarch.git
 cd calarch
-bash start.sh                       # 1=Settings, 2=Games, 3=Exit
+bash start.sh                       # Live TUI Dashboard
 
-# Hoặc chạy auto-installer trực tiếp
+# Cấu hình tập trung tại 1 file
+nano calarch.conf                   # Sửa tay thoải mái, có comment
+
+# Web dashboard (localhost:8765)
+bash lib/web.sh &
+
+# Auto-installer
 bash lib/auto-install-arch.sh       # menu: Full Install / Post-Install / Advanced
 ```
 
-### Menu Settings (3 submenus)
+### Live Dashboard
 
-**1) System** — 6 toggles
-| Toggle | Mô tả |
-|---|---|
-| Super Mode Daemon | auto COOL/HOT theo CPU load |
-| CPU Affinity | window → core 0,1; bg → 2,3 |
-| Eco Mode | 80% charge limit |
-| Undervolt | -50/-20/-50mV |
-| Auto-rotate | screen rotation sensor |
-| Touchpad | tapping + scroll |
+Chạy `bash start.sh` bạn sẽ thấy màn hình real-time:
 
-**2) Services** — 4 toggles
-| Toggle | Mô tả |
-|---|---|
-| Docker | container runtime |
-| KVM/libvirtd | virtual machine host |
-| Ollama AI | local LLM + OpenCode |
-| Maintenance timer | dọn dẹp CN 23:00 |
+```
+CPU [━━━━━━━━━━━━━━━━━━░░░] 62%  52°C  2.81GHz
+MEM [━━━━━━━━━━━━━━━━━━━━━━] 6.2/7.5 GB
+Eco: ON 80% | Super: COOL | Affinity: ACTIVE
 
-**3) Apps** — 4 toggles
-| Toggle | Mô tả |
-|---|---|
-| Obsidian Notes | cài + tạo vault ~/notes/ |
-| Website Blocker | chặn FB, Reddit, YouTube |
-| Notes Manager | Obsidian vault manager |
-| Focus Mode | Pomodoro timer + site blocker |
+ 1 System     CPU | Eco | Undervolt | Thermal
+ 2 Services   Docker | KVM | Ollama
+ 3 Profiles   Save | Load | Delete
+ 4 Focus      Pomodoro | Website Blocker
+ 5 Web        localhost:8765
+ 6 Games      minetest | assaultcube | megaglest
+ 7 History    Xem / Undo thay đổi
+ 0 Exit
+```
+
+### Config Center — `calarch.conf`
+
+Mọi tham số tập trung tại 1 file ở thư mục gốc, có comment đầy đủ:
+
+```bash
+# ~/calarch/calarch.conf
+AFFINITY_ACTIVE_CORES="0,1"     # Core cho active window
+AFFINITY_BG_CORES="2,3"         # Core cho background
+SUPER_COOL_THRESHOLD=30         # % load để xuống COOL
+SUPER_HOT_THRESHOLD=70          # % load để lên HOT
+UNDERVOLT_CPU=-50               # CPU undervolt (mV)
+ECO_CHARGE_LIMIT=80             # % pin khi sạc
+POMODORO_WORK_MINUTES=25        # Pomodoro work time
+BLOCKER_SITES="facebook.com,..."# Sites cần chặn
+```
+
+Thay đổi qua dashboard hoặc sửa tay — đều có validate + safety.
+
+### Safety Engine
+
+- **Grace period**: Thay đổi critical (undervolt, governor) có 5 phút để confirm, hết giờ auto-revert
+- **Boot guard**: Nếu boot fail 2 lần liên tiếp → tự động rollback config
+- **Undo**: `core.sh undo` — hoàn tác thay đổi cuối
+- **Validate**: Mọi giá trị được kiểm tra range trước khi apply
 
 ---
 

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>calarch dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d1117;color:#c9d1d9;font-family:system-ui,-apple-system,sans-serif;padding:20px}
+h1{font-size:1.2rem;font-weight:600;color:#58a6ff;margin-bottom:16px}
+h2{font-size:.85rem;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px}
+.card .label{font-size:.7rem;color:#8b949e;text-transform:uppercase;letter-spacing:.04em}
+.card .value{font-size:1.3rem;font-weight:600;margin-top:4px}
+.card .value.green{color:#3fb950}
+.card .value.yellow{color:#d29922}
+.card .value.red{color:#f85149}
+.card .value.cyan{color:#58a6ff}
+canvas{max-height:80px}
+.grid.charts{grid-template-columns:1fr 1fr}
+table{width:100%;border-collapse:collapse;font-size:.78rem}
+td,th{padding:6px 8px;border-bottom:1px solid #21262d;text-align:left}
+th{color:#8b949e;font-weight:500}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.actions button{background:#21262d;border:1px solid #30363d;color:#c9d1d9;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.78rem}
+.actions button:hover{background:#30363d}
+.actions button.danger{color:#f85149;border-color:#f85149}
+.actions button.success{color:#3fb950;border-color:#3fb950}
+.status-row{display:flex;gap:16px;flex-wrap:wrap;font-size:.78rem;margin:8px 0}
+.status-row span{display:flex;align-items:center;gap:4px}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dot.green{background:#3fb950}
+.dot.yellow{background:#d29922}
+.dot.red{background:#f85149}
+.dot.gray{background:#484f58}
+</style>
+</head>
+<body>
+<h1>calarch — Panasonic CF-XZ6</h1>
+
+<div class="status-row" id="statusBar"></div>
+
+<div class="grid">
+  <div class="card"><div class="label">CPU Temp</div><div class="value cyan" id="cpuTemp">--</div></div>
+  <div class="card"><div class="label">CPU Freq</div><div class="value green" id="cpuFreq">--</div></div>
+  <div class="card"><div class="label">CPU Load</div><div class="value green" id="cpuLoad">--</div></div>
+  <div class="card"><div class="label">Eco Mode</div><div class="value" id="ecoStatus">--</div></div>
+  <div class="card"><div class="label">Super Mode</div><div class="value" id="superStatus">--</div></div>
+  <div class="card"><div class="label">Grace Period</div><div class="value yellow" id="graceStatus">--</div></div>
+</div>
+
+<div class="grid charts">
+  <div class="card"><h2>CPU Load</h2><canvas id="cpuChart"></canvas></div>
+  <div class="card"><h2>CPU Temp</h2><canvas id="tempChart"></canvas></div>
+</div>
+
+<h2>Config</h2>
+<table id="configTable"><tbody></tbody></table>
+
+<script>
+const cpuChart = new Chart(document.getElementById('cpuChart'), {
+  type:'line', data:{labels:[],datasets:[{label:'%',data:[],borderColor:'#58a6ff',backgroundColor:'rgba(88,166,255,0.1)',fill:true,tension:0.3,pointRadius:0}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{min:0,max:100,grid:{color:'#21262d'}}}}
+});
+const tempChart = new Chart(document.getElementById('tempChart'), {
+  type:'line', data:{labels:[],datasets:[{label:'°C',data:[],borderColor:'#f85149',backgroundColor:'rgba(248,81,73,0.1)',fill:true,tension:0.3,pointRadius:0}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{min:30,max:90,grid:{color:'#21262d'}}}}
+});
+
+function setVal(id, val, cls) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = val; if (cls) el.className = 'value ' + cls; }
+}
+
+function fetchStatus() {
+  fetch('/api/status').then(r=>r.json()).then(d=>{
+    const load = parseInt(d.load), temp = parseInt(d.temp);
+    setVal('cpuTemp', d.temp + '°C', temp > 80 ? 'red' : temp > 60 ? 'yellow' : 'cyan');
+    setVal('cpuFreq', d.freq + ' GHz', 'green');
+    setVal('cpuLoad', d.load + '%', load > 70 ? 'red' : load > 40 ? 'yellow' : 'green');
+    fetch('/api/config').then(r=>r.json()).then(cfg => {
+      const ecoLimit = cfg.ECO_CHARGE_LIMIT || '80';
+      setVal('ecoStatus', d.eco === '1' ? 'ON ' + ecoLimit + '%' : 'OFF 100%', d.eco === '1' ? 'green' : 'gray');
+    }).catch(() => setVal('ecoStatus', d.eco === '1' ? 'ON' : 'OFF', d.eco === '1' ? 'green' : 'gray'));
+    setVal('superStatus', d.super === '1' ? 'ACTIVE' : 'OFF', d.super === '1' ? 'green' : 'gray');
+    setVal('graceStatus', d.grace || 'none', d.grace ? 'yellow' : 'gray');
+
+    document.getElementById('statusBar').innerHTML =
+      '<span><span class="dot ' + (d.super==='1'?'green':'gray') + '"></span>Super ' + (d.super==='1'?'ON':'OFF') + '</span>' +
+      '<span><span class="dot ' + (d.eco==='1'?'green':'gray') + '"></span>Eco ' + (d.eco==='1'?'ON':'OFF') + '</span>' +
+      '<span><span class="dot ' + (d.grace?'yellow':'green') + '"></span>Grace: ' + (d.grace||'none') + '</span>';
+
+    const now = new Date().toLocaleTimeString();
+    cpuChart.data.labels.push(now); cpuChart.data.datasets[0].data.push(load);
+    tempChart.data.labels.push(now); tempChart.data.datasets[0].data.push(temp);
+    if (cpuChart.data.labels.length > 30) { cpuChart.data.labels.shift(); cpuChart.data.datasets[0].data.shift(); }
+    if (tempChart.data.labels.length > 30) { tempChart.data.labels.shift(); tempChart.data.datasets[0].data.shift(); }
+    cpuChart.update(); tempChart.update();
+  }).catch(()=>{});
+}
+
+function fetchConfig() {
+  fetch('/api/config').then(r=>r.json()).then(data=>{
+    const tbody = document.querySelector('#configTable tbody');
+    tbody.innerHTML = '';
+    for (const [key, val] of Object.entries(data)) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td style="font-family:monospace;color:#58a6ff">' + key + '</td><td>' + val + '</td>';
+      tbody.appendChild(tr);
+    }
+  }).catch(()=>{});
+}
+
+setInterval(fetchStatus, 1500);
+fetchStatus();
+fetchConfig();
+</script>
+</body>
+</html>
