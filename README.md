@@ -20,6 +20,9 @@ God-Mode cho Panasonic CF-XZ6 — Arch Linux, Hyprland, CPU Affinity
 - **Thermal God-Mode** — Undervolt -50/-20/-50mV, GPU freq 300-750MHz, thermald + TLP
 - **Btrfs + ZRAM 8GB** — Snapper snapshots, scrub timer, fstrim weekly, compress zstd:3
 - **Live Dashboard** — Real-time TUI + Web (localhost:8765) hiển thị CPU temp/freq/load, Eco, Super Mode
+- **Drag-and-drop TUI** — 6 box layout, kéo thả bằng chuột, ẩn/hiện box tùy ý
+- **Color Palette** — 5 preset màu (Cyan, Matrix, Royal, Amber, Mono) + custom
+- **Layout Save** — Vị trí box và màu sắc tự động lưu, khôi phục lần sau
 - **Config Center** — Mọi tham số tập trung tại 1 file `calarch.conf`, dễ sửa, có validate + safety
 - **Profile Manager** — Lưu/nạp cấu hình (default, performance, battery)
 - **Safety Engine** — Grace period (auto-revert 5p), boot guard (rollback nếu boot fail), undo history
@@ -45,7 +48,7 @@ calarch/
 │   ├── core.sh                  # ⭐ Config I/O + Validate + Safety + Profile
 │   ├── dashboard.sh             # ⭐ Live TUI dashboard (thay thế start.sh cũ)
 │   ├── web.sh                   # Python HTTP server (localhost:8765)
-│   ├── tui.sh                   # TUI abstraction (dialog / whiptail)
+│   ├── tui.sh                   # TUI widget library (dialog — form, tailbox, menu)
 │   ├── settings.sh              # Settings panel — 14 toggles
 │   ├── super-mode.sh            # Daemon HOT/COOL (đọc từ calarch.conf)
 │   ├── hyprland-event-monitor.sh# CPU Affinity Engine (đọc từ calarch.conf)
@@ -71,7 +74,7 @@ calarch/
 | OS | Arch Linux (linux-zen kernel) |
 | Shell | Bash 5.0+, `set -euo pipefail` |
 | Desktop | Hyprland (Wayland) via JaKooLit |
-| TUI | dialog (preferred) / whiptail (fallback) — `lib/tui.sh` |
+| TUI | dialog — ANSI box engine, mouse SGR drag-drop, palette |
 | Web | Python HTTP server + Chart.js (localhost:8765) |
 | CPU | taskset, chrt, ananicy-cpp |
 | Thermal | thermald, TLP, intel-undervolt |
@@ -106,22 +109,39 @@ bash lib/auto-install-arch.sh       # menu: Full Install / Post-Install / Advanc
 
 ### Live Dashboard
 
-Chạy `bash start.sh` bạn sẽ thấy màn hình real-time:
+Chạy `bash start.sh` bạn sẽ thấy giao diện 6 box:
 
 ```
-CPU [━━━━━━━━━━━━━━━━━━░░░] 62%  52°C  2.81GHz
-MEM [━━━━━━━━━━━━━━━━━━━━━━] 6.2/7.5 GB
-Eco: ON 80% | Super: COOL | Affinity: ACTIVE
-
- 1 System     CPU | Eco | Undervolt | Thermal
- 2 Services   Docker | KVM | Ollama
- 3 Profiles   Save | Load | Delete
- 4 Focus      Pomodoro | Website Blocker
- 5 Web        localhost:8765
- 6 Games      minetest | assaultcube | megaglest
- 7 History    Xem / Undo thay đổi
- 0 Exit
+┌─ CALARCH CONTROL CENTER ──────────────────────────────────────────────┐
+│ [1]SYSTEM [2]SERVICES [3]FOCUS [4]PROFILES [5]TOOLS [6]STATUS  P . Q │
+├───────────────────────────────────────────────────────────────────────┤
+│ ┌── SYSTEM ─────────────┐ ┌── SERVICES ────────────┐                 │
+│ │ CPU 62% 52°C 2.81GHz  │ │ Docker:ON KVM:OFF      │                 │
+│ │ Eco:ON 80% Super:COOL  │ │ Ollama:ON Maint:ON     │                 │
+│ │ UV:-50/-20/-50 CState4 │ │ Rotate:OFF Touch:ON    │                 │
+│ │ Enter=edit Drag=title  │ │ Enter=toggle           │                 │
+│ └────────────────────────┘ └────────────────────────┘                 │
+│ ┌── FOCUS ──────────────┐ ┌── PROFILES ────────────┐                 │
+│ │ Pomodoro 25/5/4        │ │ default performance    │                 │
+│ │ Blocker:OFF Focus:OFF  │ │ Enter=manage           │                 │
+│ │ Enter=open              │ │                        │                 │
+│ └────────────────────────┘ └────────────────────────┘                 │
+│ ┌── TOOLS ──────────────┐ ┌── STATUS ──────────────┐                 │
+│ │ Notes Games Web:8765   │ │ CPU ████████░░ 62%     │                 │
+│ │ AutoInstall GodMode    │ │ MEM █████████░ 6.2/7.5 │                 │
+│ │ Enter=open              │ │ Enter=live view  R=ref │                 │
+│ └────────────────────────┘ └────────────────────────┘                 │
+├───────────────────────────────────────────────────────────────────────┤
+│ Grace:undervolt(247s)  History:12  Boot:OK(1)                        │
+└───────────────────────────────────────────────────────────────────────┘
 ```
+
+- **Kéo thả**: Click + kéo title bar box bằng chuột để di chuyển
+- **Ẩn/hiện**: Bấm `1`-`6` để toggle box tương ứng
+- **Palette**: Bấm `P` để đổi màu (Cyan, Matrix, Royal, Amber, Mono, Custom)
+- **Quick menu**: Bấm `.` để mở menu nhanh (Grace, History, Undo, Help)
+- **Refresh**: Bấm `R` để làm mới dữ liệu
+- **Tương tác**: Enter trên box → mở dialog settings tương ứng
 
 ### Config Center — `calarch.conf`
 
@@ -147,6 +167,37 @@ Thay đổi qua dashboard hoặc sửa tay — đều có validate + safety.
 - **Boot guard**: Nếu boot fail 2 lần liên tiếp → tự động rollback config
 - **Undo**: `core.sh undo` — hoàn tác thay đổi cuối
 - **Validate**: Mọi giá trị được kiểm tra range trước khi apply
+
+---
+
+## Customization
+
+### Layout & Palette
+
+Vị trí các box và màu sắc được lưu tại `~/.config/calarch/layout.conf`:
+
+```ini
+system=2,3,40,7,1
+services=44,3,40,7,1
+focus=2,11,40,6,1
+profiles=44,11,40,6,1
+tools=2,18,40,6,1
+status=44,18,40,6,1
+palette=cyan
+```
+
+Có thể xóa file này để reset về mặc định.
+
+### Palette Presets
+
+| Preset | Mô tả |
+|--------|-------|
+| **Cyan** (default) | Xanh cyan chuyên nghiệp |
+| **Matrix** | Xanh lá trên nền đen |
+| **Royal** | Tím + vàng |
+| **Amber** | Cam retro |
+| **Mono** | Trắng đen tối giản |
+| **Custom** | Tự chọn từng mã ANSI |
 
 ---
 
