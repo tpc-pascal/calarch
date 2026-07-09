@@ -119,6 +119,14 @@ focus_mode() {
         hyprctl --batch "keyword decoration:drop_shadow 0; keyword misc:disable_autoreload 1" 2>/dev/null || true
     fi
 
+    # --- Ultrafocus: Tat notification system-wide ---
+    if command -v gsettings &>/dev/null; then
+        gsettings set org.gnome.desktop.notifications show-banners false 2>/dev/null || true
+    fi
+    if command -v notify-send &>/dev/null; then
+        pkill -f "dunst" 2>/dev/null || true
+    fi
+
     echo ""
     log_i "Bat dau Pomodoro..."
     pomodoro_timer "${POMODORO_WORK_MINUTES:-25}" "${POMODORO_BREAK_MINUTES:-5}" "${POMODORO_CYCLES:-4}"
@@ -140,24 +148,55 @@ focus_mode() {
     if command -v hyprctl &>/dev/null; then
         hyprctl --batch "keyword decoration:drop_shadow 1; keyword misc:disable_autoreload 0" 2>/dev/null || true
     fi
+    if command -v gsettings &>/dev/null; then
+        gsettings set org.gnome.desktop.notifications show-banners true 2>/dev/null || true
+    fi
+    if command -v dunst &>/dev/null; then
+        nohup dunst >/dev/null 2>&1 &
+    fi
 
-    notify-send -t 5000 "Focus Mode" "Da hoan thanh Focus Mode!" 2>/dev/null || true
+    notify-send -t 5000 "Focus Mode" "Focus Mode Complete!" 2>/dev/null || true
+}
+
+# --- Ultrafocus: Terminal-Only Mode ---
+terminal_only() {
+    echo -e "${MG}=== TERMINAL-ONLY MODE ===${R}"
+    echo ""
+    log_i "Dang chuyen sang che do terminal-only..."
+
+    if command -v hyprctl &>/dev/null; then
+        # Tat tat ca cua so GUI tru terminal (kitty)
+        hyprctl clients -j 2>/dev/null | jq -r '.[] | select(.class != "kitty" and .class != "Alacritty" and .class != "foot") | .pid' 2>/dev/null | while read -r pid; do
+            [ -n "$pid" ] && [ "$pid" -gt 0 ] && kill -9 "$pid" 2>/dev/null || true
+        done
+        log_ok "GUI windows closed (except terminal)"
+    fi
+
+    # Khoi dong terminal fullscreen
+    if command -v kitty &>/dev/null; then
+        nohup kitty --start-as=fullscreen >/dev/null 2>&1 &
+    fi
+
+    log_ok "Terminal-only mode active"
+    read -r -p "Press Enter..."
 }
 
 # --- Menu ---
 main_menu() {
     while true; do
         local c
-        c=$(tui_menu "FOCUS" "Chon chuc nang:" 14 50 4 \
+        c=$(tui_menu "FOCUS" "Chon chuc nang:" 14 50 5 \
             "[1]" "Pomodoro Timer (25/5/4 cycles)" \
             "[2]" "Toggle Website Blocker" \
             "[3]" "Focus Mode (Pomodoro + Blocker)" \
+            "[4]" "Terminal-Only Mode (kill GUI)" \
             "[B]" "Quay lai") || break
 
         case "$c" in
             "[1]") pomodoro_timer ;;
             "[2]") website_blocker ;;
             "[3]") focus_mode ;;
+            "[4]") terminal_only ;;
             "[B]") break ;;
         esac
     done

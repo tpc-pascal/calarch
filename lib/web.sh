@@ -1,9 +1,21 @@
 #!/usr/bin/env python3
 """calarch web dashboard — HTTP server (localhost:8765)"""
-import http.server, subprocess, json, os, sys
+import http.server, subprocess, json, os, sys, glob, shutil
 
 DIR = os.path.join(os.path.dirname(__file__), '..', 'web')
 CORE = os.path.join(os.path.dirname(__file__), 'core.sh')
+
+def ultrafocus_status():
+    home = os.path.expanduser("~")
+    return json.dumps({
+        "neovim": shutil.which("nvim") is not None,
+        "rofi": shutil.which("rofi") is not None,
+        "ytdlp": shutil.which("yt-dlp") is not None,
+        "mpv": shutil.which("mpv") is not None,
+        "spicetify": shutil.which("spicetify") is not None,
+        "emacs": shutil.which("emacs") is not None,
+        "firefox_vtabs": len(glob.glob(home + "/.mozilla/firefox/*/chrome/userChrome.css")) > 0
+    })
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
@@ -13,6 +25,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         elif self.path == '/api/config':
             data = subprocess.check_output(['bash', CORE, 'list-json'], text=True, timeout=2)
             self.send_json(json.loads(data))
+        elif self.path == '/api/ultrafocus':
+            self.send_json(json.loads(ultrafocus_status()))
         else:
             super().do_GET()
 

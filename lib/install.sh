@@ -3240,6 +3240,22 @@ WantedBy=timers.target
     log_success "Final System Integration complete!"
 }
 
+# ============================================================================
+# PART 13: ULTRAFOCUS TOOLCHAIN
+# ============================================================================
+
+setup_ultrafocus_toolchain() {
+    log_header "PHẦN 13: ULTRAFOCUS TOOLCHAIN"
+
+    if [ ! -f "$SCRIPT_DIR/ultrafocus-install.sh" ]; then
+        log_warn "ultrafocus-install.sh not found, skipping"
+        return
+    fi
+
+    bash "$SCRIPT_DIR/ultrafocus-install.sh" || log_warn "Ultrafocus install had some issues"
+    log_success "Ultrafocus Toolchain installation complete!"
+}
+
 
 # ============================================================================
 # MAIN EXECUTION — Main entry point
@@ -3345,6 +3361,8 @@ Continue?"
     safe_run "12" "Final System Integration" setup_final_integration &
     local pid_12=$!
     wait $pid_12 2>/dev/null || true
+
+    safe_run "13" "Ultrafocus Toolchain" setup_ultrafocus_toolchain &
 
     # --- Bước 8: Package state diff ---
     log_info "Saving post-install package state..."
