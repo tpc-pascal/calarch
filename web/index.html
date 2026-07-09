@@ -56,6 +56,16 @@ th{color:#8b949e;font-weight:500}
   <div class="card"><h2>CPU Temp</h2><canvas id="tempChart"></canvas></div>
 </div>
 
+<h2>Ultrafocus</h2>
+<div class="grid" id="ultrafocusGrid">
+  <div class="card"><div class="label">Neovim</div><div class="value" id="ufNeovim">--</div></div>
+  <div class="card"><div class="label">Rofi</div><div class="value" id="ufRofi">--</div></div>
+  <div class="card"><div class="label">YouTube</div><div class="value" id="ufYt">--</div></div>
+  <div class="card"><div class="label">Spicetify</div><div class="value" id="ufSpicetify">--</div></div>
+  <div class="card"><div class="label">Emacs</div><div class="value" id="ufEmacs">--</div></div>
+  <div class="card"><div class="label">FF Vertical Tabs</div><div class="value" id="ufVtabs">--</div></div>
+</div>
+
 <h2>Config</h2>
 <table id="configTable"><tbody></tbody></table>
 
@@ -86,6 +96,15 @@ function fetchStatus() {
     }).catch(() => setVal('ecoStatus', d.eco === '1' ? 'ON' : 'OFF', d.eco === '1' ? 'green' : 'gray'));
     setVal('superStatus', d.super === '1' ? 'ACTIVE' : 'OFF', d.super === '1' ? 'green' : 'gray');
     setVal('graceStatus', d.grace || 'none', d.grace ? 'yellow' : 'gray');
+
+    fetch('/api/ultrafocus').then(r=>r.json()).then(u=>{
+      setVal('ufNeovim', u.neovim ? 'INSTALLED' : 'MISSING', u.neovim ? 'green' : 'gray');
+      setVal('ufRofi', u.rofi ? 'INSTALLED' : 'MISSING', u.rofi ? 'green' : 'gray');
+      setVal('ufYt', u.ytdlp ? 'READY' : 'MISSING', u.ytdlp ? 'green' : 'gray');
+      setVal('ufSpicetify', u.spicetify ? 'INSTALLED' : 'MISSING', u.spicetify ? 'green' : 'gray');
+      setVal('ufEmacs', u.emacs ? 'INSTALLED' : 'MISSING', u.emacs ? 'green' : 'gray');
+      setVal('ufVtabs', u.firefox_vtabs ? 'ACTIVE' : 'DISABLED', u.firefox_vtabs ? 'green' : 'gray');
+    }).catch(()=>{});
 
     document.getElementById('statusBar').innerHTML =
       '<span><span class="dot ' + (d.super==='1'?'green':'gray') + '"></span>Super ' + (d.super==='1'?'ON':'OFF') + '</span>' +
