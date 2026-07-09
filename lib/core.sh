@@ -50,6 +50,19 @@ SCHEMA=(
   "DISPLAY_SCALE|float|0.5|3.0|"
   "DISPLAY_RESOLUTION|str|||"
   "DISPLAY_REFRESH|int|30|240|"
+  "LAUNCHER_ENGINE|enum|||rofi,dmenu,wofi"
+  "LAUNCHER_THEME|str|||"
+  "LAUNCHER_SHORTCUT|str|||"
+  "FIREFOX_VTABS|enum|||yes,no"
+  "FIREFOX_VTABS_ENGINE|enum|||sidebery,tree-style-tab"
+  "FIREFOX_PRIVACY|enum|||strict,standard,custom"
+  "EDITOR_ENGINE|enum|||neovim,emacs,vscode"
+  "EDITOR_DISTRO|enum|||lazyvim,astronvim,nvchad"
+  "MEDIA_YT_PLAYER|enum|||mpv,vlc"
+  "MEDIA_QUALITY|enum|||720p,1080p,2160p,best"
+  "SPOTIFY_THEME|str|||"
+  "SPOTIFY_ADBLOCK|enum|||yes,no"
+  "NOTES_ENGINE|enum|||emacs-org,obsidian"
 )
 
 # ============================================================================
@@ -192,6 +205,24 @@ validate() {
         log_e "Loi: $key toi da $max (co: $val)"
         return 1
       fi
+      ;;
+    LAUNCHER_ENGINE)
+      log_i "Launcher engine thay doi thanh: $val (can setup launcher)"
+      ;;
+    FIREFOX_VTABS)
+      log_i "Firefox vertical tabs: $val (can chay firefox.sh de ap dung)"
+      ;;
+    EDITOR_ENGINE)
+      log_i "Editor engine: $val"
+      ;;
+    MEDIA_YT_PLAYER)
+      log_i "Media player: $val"
+      ;;
+    SPOTIFY_THEME)
+      log_i "Spotify theme: $val (chay spotify.sh de ap dung)"
+      ;;
+    NOTES_ENGINE)
+      log_i "Notes engine: $val"
       ;;
   esac
   return 0

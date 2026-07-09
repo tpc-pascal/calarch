@@ -130,16 +130,17 @@ custom_palette() {
 # ============================================================================
 # BOX DEFINITIONS
 # ============================================================================
-BOX_IDS=(system services focus profiles tools status)
-BOX_NAMES=("SYSTEM" "SERVICES" "FOCUS" "PROFILES" "TOOLS" "STATUS")
+BOX_IDS=(system services focus profiles tools ultrafocus status)
+BOX_NAMES=("SYSTEM" "SERVICES" "FOCUS" "PROFILES" "TOOLS" "ULTRAFOCUS" "STATUS")
 
 DEFAULT_LAYOUT=(
   "system=2,3,40,7,1"
   "services=44,3,40,7,1"
   "focus=2,11,40,6,1"
   "profiles=44,11,40,6,1"
-  "tools=2,18,40,6,1"
-  "status=44,18,40,6,1"
+  "tools=2,18,26,6,1"
+  "ultrafocus=29,18,26,6,1"
+  "status=56,18,26,6,1"
 )
 
 declare -A B  # box positions: "x,y,w,h,visible"
@@ -367,10 +368,41 @@ render_box_content() {
           printf "${P[muted]}Stylus${R}"
           ;;
         3)
-          printf "${P[muted]}%s${R}" "──────────────────────────────────────"
+          printf "${P[muted]}%s${R}" "──────────────────────"
           ;;
         4)
           printf "${P[ok]}Enter${R}=${P[muted]}open${R}"
+          ;;
+        *)
+          printf "%s" "$pad"
+          ;;
+      esac
+      ;;
+    ultrafocus)
+      case "$line" in
+        0)
+          local ed="?"; command -v nvim &>/dev/null && ed="${P[ok]}nvim${R}" || ed="${P[muted]}✗${R}"
+          local lc="?"; command -v rofi &>/dev/null && lc="${P[ok]}rofi${R}" || lc="${P[muted]}✗${R}"
+          printf "Editor: %b  Launcher: %b" "$ed" "$lc"
+          ;;
+        1)
+          local ff="${P[muted]}✗${R}"
+          for f in "$HOME/.mozilla/firefox"/*/chrome/userChrome.css; do
+            [ -f "$f" ] && ff="${P[ok]}vtabs${R}" && break
+          done
+          local sp="?"; command -v spicetify &>/dev/null && sp="${P[ok]}spicetfy${R}" || sp="${P[muted]}✗${R}"
+          printf "Firefox: %b  Spotify: %b" "$ff" "$sp"
+          ;;
+        2)
+          local yt="?"; command -v yt-dlp &>/dev/null && yt="${P[ok]}yt${R}" || yt="${P[muted]}✗${R}"
+          local em="?"; command -v emacs &>/dev/null && em="${P[ok]}emacs${R}" || em="${P[muted]}✗${R}"
+          printf "Media: %b  Notes: %b" "$yt" "$em"
+          ;;
+        3)
+          printf "${P[muted]}%s${R}" "──────────────────────"
+          ;;
+        4)
+          printf "${P[ok]}Enter${R}=${P[muted]}manage${R}"
           ;;
         *)
           printf "%s" "$pad"
@@ -639,7 +671,7 @@ handle_mouse() {
 
 handle_key() {
   case "$EVENT" in
-    [1-6])
+    [1-7])
       local idx=$((EVENT - 1))
       local id="${BOX_IDS[$idx]}"
       local pos="${B[$id]:-}"
@@ -745,6 +777,7 @@ popup_box() {
     focus)    popup_focus ;;
     profiles) popup_profiles ;;
     tools)    popup_tools ;;
+    ultrafocus) popup_ultrafocus ;;
     status)   popup_status ;;
   esac
   redraw_all
@@ -957,6 +990,31 @@ popup_tools() {
       bash "$SCRIPT_DIR/auto-install-arch.sh" || true
       ;;
   esac
+}
+
+popup_ultrafocus() {
+  while true; do
+    local c
+    c=$(tui_menu "ULTRAFOCUS" "Quan ly cong cu Ultrafocus:" 16 56 8 \
+      "launcher" "Rofi Launcher — app menu + web search" \
+      "firefox"  "Firefox — vertical tabs, privacy" \
+      "kitty"    "Kitty + Zsh — terminal, shell, plugins" \
+      "neovim"   "Neovim + LazyVim — editor + LSP" \
+      "media"    "YouTube / Anime — terminal media player" \
+      "spotify"  "Spotify + Spicetify — adblock, theme" \
+      "emacs"    "Emacs Org-mode — notes, org-roam" \
+      "back"     "Back") || break
+    case "$c" in
+      launcher) bash "$SCRIPT_DIR/launcher.sh" || true ;;
+      firefox)  bash "$SCRIPT_DIR/firefox.sh" || true ;;
+      kitty)    bash "$SCRIPT_DIR/kitty-ultrafocus.sh" || true ;;
+      neovim)   bash "$SCRIPT_DIR/neovim.sh" || true ;;
+      media)    bash "$SCRIPT_DIR/yt-video.sh" || true ;;
+      spotify)  bash "$SCRIPT_DIR/spotify.sh" || true ;;
+      emacs)    bash "$SCRIPT_DIR/emacs.sh" || true ;;
+      back|*) break ;;
+    esac
+  done
 }
 
 popup_status() {
