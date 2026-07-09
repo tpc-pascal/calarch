@@ -20,6 +20,13 @@ FOCUS_SH="$SCRIPT_DIR/focus.sh"
 NOTES_SH="$SCRIPT_DIR/notes.sh"
 HOSTS_BACKUP="/tmp/hosts.focus.backup"
 FOCUS_FLAG="/tmp/focus.mode.flag"
+LAUNCHER_SH="$SCRIPT_DIR/launcher.sh"
+FIREFOX_SH="$SCRIPT_DIR/firefox.sh"
+KITTY_UF_SH="$SCRIPT_DIR/kitty-ultrafocus.sh"
+NEOVIM_SH="$SCRIPT_DIR/neovim.sh"
+SPOTIFY_SH="$SCRIPT_DIR/spotify.sh"
+EMACS_SH="$SCRIPT_DIR/emacs.sh"
+YT_SH="$SCRIPT_DIR/yt-video.sh"
 
 log_i()  { echo -e "${CY}>>>${R} $*"; }
 log_ok() { echo -e "${GR}[OK]${R} $*"; }
@@ -45,6 +52,11 @@ obs_on()       { command -v obsidian &>/dev/null; }
 block_on()     { [ -f "$HOSTS_BACKUP" ]; }
 notes_on()     { command -v obsidian &>/dev/null; }
 focus_on()     { [ -f "$FOCUS_FLAG" ]; }
+launcher_on()  { command -v rofi &>/dev/null; }
+firefox_on()   { [ -f "$HOME/.mozilla/firefox"/*/chrome/userChrome.css ] 2>/dev/null; }
+neovim_on()    { command -v nvim &>/dev/null; }
+spotify_on()   { command -v spicetify &>/dev/null; }
+emacs_on()     { command -v emacs &>/dev/null; }
 
 # ==================================================================
 # TOGGLE FUNCTIONS
@@ -145,6 +157,26 @@ toggle_focus() {
         else rm -f "$FOCUS_FLAG"; log_e "Missing $FOCUS_SH"; fi
     fi
 }
+toggle_launcher() {
+    if [ -f "$LAUNCHER_SH" ]; then bash "$LAUNCHER_SH"
+    else log_e "Missing $LAUNCHER_SH"; fi
+}
+toggle_firefox() {
+    if [ -f "$FIREFOX_SH" ]; then bash "$FIREFOX_SH"
+    else log_e "Missing $FIREFOX_SH"; fi
+}
+toggle_neovim() {
+    if [ -f "$NEOVIM_SH" ]; then bash "$NEOVIM_SH"
+    else log_e "Missing $NEOVIM_SH"; fi
+}
+toggle_spotify() {
+    if [ -f "$SPOTIFY_SH" ]; then bash "$SPOTIFY_SH"
+    else log_e "Missing $SPOTIFY_SH"; fi
+}
+toggle_emacs() {
+    if [ -f "$EMACS_SH" ]; then bash "$EMACS_SH"
+    else log_e "Missing $EMACS_SH"; fi
+}
 
 # ==================================================================
 # GENERIC: build checklist + apply for a group of tags
@@ -152,7 +184,7 @@ toggle_focus() {
 # tag list per group
 SYSTEM_TAGS=(super affinity eco uv rotate touch)
 SERVICES_TAGS=(dock kvm ollama maint)
-APPS_TAGS=(obs block notes focus)
+APPS_TAGS=(obs block notes focus launcher firefox neovim spotify emacs)
 
 build_group() {
     local group_name="$1"; shift
@@ -175,6 +207,11 @@ build_group() {
             block)   state=$(block_on && echo "ON" || echo "OFF");    desc="Website Blocker                 FB, Reddit, YouTube";;
             notes)   state=$(notes_on && echo "ON" || echo "OFF");    desc="Notes Manager                   Obsidian vault manager";;
             focus)   state=$(focus_on && echo "ON" || echo "OFF");    desc="Focus Mode                      Pomodoro + site blocker";;
+            launcher)state=$(launcher_on && echo "ON" || echo "OFF"); desc="Rofi Launcher                   Ultrafocus theme";;
+            firefox) state=$(firefox_on && echo "ON" || echo "OFF");  desc="Firefox Config                  Vertical tabs + privacy";;
+            neovim)  state=$(neovim_on && echo "ON" || echo "OFF");   desc="Neovim + LazyVim                Editor + LSP servers";;
+            spotify) state=$(spotify_on && echo "ON" || echo "OFF");  desc="Spotify + Spicetify             Adblock + Dribbblish";;
+            emacs)   state=$(emacs_on && echo "ON" || echo "OFF");    desc="Emacs + Org-mode                Notes + org-roam";;
         esac
         items+=("$item" "$desc  [$state]" "$state")
     done
@@ -200,6 +237,9 @@ apply_tags() {
             kvm)     kvm_on && cur=1;;     ollama)  ollama_on && cur=1;;
             obs)     obs_on && cur=1;;     block)   block_on && cur=1;;
             notes)   notes_on && cur=1;;   focus)   focus_on && cur=1;;
+            launcher)launcher_on && cur=1;; firefox) firefox_on && cur=1;;
+            neovim)  neovim_on && cur=1;;   spotify) spotify_on && cur=1;;
+            emacs)   emacs_on && cur=1;;
         esac
         [ "$want" -eq "$cur" ] && continue
         toggle_"$tag"
