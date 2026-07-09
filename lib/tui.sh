@@ -65,3 +65,9 @@ tui_tailbox() {
   dialog --shadow --colors --backtitle "$BACKTITLE" \
     --title "$title" --tailbox "$file" "$h" "$w"
 }
+
+tui_radiolist() {
+  local title="$1" prompt="$2" h="$3" w="$4" lh="$5"; shift 5
+  dialog --shadow --colors --backtitle "$BACKTITLE" \
+    --title "$title" --radiolist "$prompt" "$h" "$w" "$lh" "$@" 2>&1 >/dev/tty
+}
