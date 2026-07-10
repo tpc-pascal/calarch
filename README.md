@@ -20,7 +20,7 @@ God-Mode cho Panasonic CF-XZ6 — Arch Linux, Hyprland, CPU Affinity
 - **Thermal God-Mode** — Undervolt -50/-20/-50mV, GPU freq 300-750MHz, thermald + TLP
 - **Btrfs + ZRAM 8GB** — Snapper snapshots, scrub timer, fstrim weekly, compress zstd:3
 - **Live Dashboard** — Real-time TUI + Web (localhost:8765) hiển thị CPU temp/freq/load, Eco, Super Mode
-- **Drag-and-drop TUI** — 6 box layout, kéo thả bằng chuột, ẩn/hiện box tùy ý
+- **Drag-and-drop TUI** — 7 box layout, kéo thả bằng chuột, ẩn/hiện box tùy ý
 - **Color Palette** — 5 preset màu (Cyan, Matrix, Royal, Amber, Mono) + custom
 - **Layout Save** — Vị trí box và màu sắc tự động lưu, khôi phục lần sau
 - **Config Center** — Mọi tham số tập trung tại 1 file `calarch.conf`, dễ sửa, có validate + safety
@@ -28,6 +28,8 @@ God-Mode cho Panasonic CF-XZ6 — Arch Linux, Hyprland, CPU Affinity
 - **Safety Engine** — Grace period (auto-revert 5p), boot guard (rollback nếu boot fail), undo history
 - **Settings Panel** — 3 submenus: System (6), Services (4), Apps (4)
 - **Games** — minetest, assaultcube, megaglest (Arch official repo)
+- **Drive Manager** — Liệt kê tất cả partition, mount/unmount với auto-detect fstype (NTFS, exfat, vfat, ext4…), browse file manager
+- **Wallpaper Changer** — Chafa preview thumbnail, set wallpaper (hyprpaper/swaybg/feh), random, import custom ảnh
 
 ---
 
@@ -57,6 +59,9 @@ calarch/
 │   ├── focus.sh                 # Pomodoro + blocker (đọc từ calarch.conf)
 │   ├── notes.sh                 # Obsidian vault manager
 │   ├── games.sh                 # minetest, assaultcube, megaglest
+│   ├── mount.sh                 # Drive / Volume Manager
+│   ├── wallpaper.sh             # Wallpaper changer + chafa preview
+│   ├── anime.sh                 # Terminal anime player (Nyaa/YouTube)
 │   ├── common.sh, config.sh     # Shared libraries (installer)
 │   └── phase0-detect.sh … phase4-finalize.sh, cf-xz6-rotator.sh, ...
 ├── assets/logo.svg
@@ -105,6 +110,12 @@ bash lib/web.sh &
 
 # Auto-installer
 bash lib/auto-install-arch.sh       # menu: Full Install / Post-Install / Advanced
+
+# Drive Manager (mount/unmount)
+bash lib/mount.sh                   # menu: list, mount, unmount, browse
+
+# Wallpaper Changer (preview + set)
+bash lib/wallpaper.sh               # menu: select, random, import, engine
 ```
 
 ### Live Dashboard
@@ -127,8 +138,8 @@ Chạy `bash start.sh` bạn sẽ thấy giao diện 6 box:
 │ │ Enter=open              │ │                        │                 │
 │ └────────────────────────┘ └────────────────────────┘                 │
 │ ┌── TOOLS ──────────────┐ ┌── STATUS ──────────────┐                 │
-│ │ Notes Games Web:8765   │ │ CPU ████████░░ 62%     │                 │
-│ │ AutoInstall GodMode    │ │ MEM █████████░ 6.2/7.5 │                 │
+│ │ Notes Games Mount Wall │ │ CPU ████████░░ 62%     │                 │
+│ │ Web:8765 AutoInstall   │ │ MEM █████████░ 6.2/7.5 │                 │
 │ │ Enter=open              │ │ Enter=live view  R=ref │                 │
 │ └────────────────────────┘ └────────────────────────┘                 │
 ├───────────────────────────────────────────────────────────────────────┤
@@ -137,7 +148,7 @@ Chạy `bash start.sh` bạn sẽ thấy giao diện 6 box:
 ```
 
 - **Kéo thả**: Click + kéo title bar box bằng chuột để di chuyển
-- **Ẩn/hiện**: Bấm `1`-`6` để toggle box tương ứng
+- **Ẩn/hiện**: Bấm `1`-`7` để toggle box tương ứng
 - **Palette**: Bấm `P` để đổi màu (Cyan, Matrix, Royal, Amber, Mono, Custom)
 - **Quick menu**: Bấm `.` để mở menu nhanh (Grace, History, Undo, Help)
 - **Refresh**: Bấm `R` để làm mới dữ liệu
@@ -157,6 +168,9 @@ UNDERVOLT_CPU=-50               # CPU undervolt (mV)
 ECO_CHARGE_LIMIT=80             # % pin khi sạc
 POMODORO_WORK_MINUTES=25        # Pomodoro work time
 BLOCKER_SITES="facebook.com,..."# Sites cần chặn
+MOUNT_BASE="/mnt"                   # Thư mục mount
+WALLPAPER_DIR="$HOME/Pictures/wallpapers" # Thư mục wallpaper
+WALLPAPER_ENGINE="hyprpaper"        # Engine: hyprpaper, swaybg, feh
 ```
 
 Thay đổi qua dashboard hoặc sửa tay — đều có validate + safety.
