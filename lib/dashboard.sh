@@ -359,10 +359,10 @@ render_box_content() {
     tools)
       case "$line" in
         0)
-          printf "${P[muted]}Notes${R}  ${P[muted]}Games${R}  ${P[muted]}Web${R}:${P[hl]}8765${R}"
+          printf "${P[muted]}Notes${R}  ${P[muted]}Games${R}  ${P[muted]}Mount${R}  ${P[muted]}Wall${R}"
           ;;
         1)
-          printf "${P[muted]}AutoInstall${R}  ${P[muted]}GodMode${R}"
+          printf "${P[muted]}Web${R}:${P[hl]}8765${R}  ${P[muted]}AutoInstall${R}  ${P[muted]}GodMode${R}"
           ;;
         2)
           printf "${P[muted]}Stylus${R}"
@@ -965,18 +965,26 @@ popup_profiles() {
 
 popup_tools() {
   local c
-  c=$(tui_menu "TOOLS" "Choose tool:" 14 44 5 \
-    "notes"   "Notes Manager (Obsidian)" \
-    "games"   "Games (minetest, assaultcube, megaglest)" \
-    "web"     "Web Dashboard (localhost:8765)" \
-    "install" "Auto Install Arch Linux" \
-    "back"    "Back") || return
+  c=$(tui_menu "TOOLS" "Choose tool:" 16 50 7 \
+    "notes"    "Notes Manager (Obsidian)" \
+    "games"    "Games (minetest, assaultcube, megaglest)" \
+    "mount"    "Drive Manager — mount/unmount drives" \
+    "wall"     "Wallpaper — chafa preview + changer" \
+    "web"      "Web Dashboard (localhost:8765)" \
+    "install"  "Auto Install Arch Linux" \
+    "back"     "Back") || return
   case "$c" in
     notes)
       bash "$SCRIPT_DIR/notes.sh" || true
       ;;
     games)
       bash "$SCRIPT_DIR/games.sh" || true
+      ;;
+    mount)
+      bash "$SCRIPT_DIR/mount.sh" || true
+      ;;
+    wall)
+      bash "$SCRIPT_DIR/wallpaper.sh" || true
       ;;
     web)
       if pgrep -f "web.sh" &>/dev/null; then

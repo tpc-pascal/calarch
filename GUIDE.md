@@ -73,7 +73,7 @@ bash start.sh
 
 ### Giao diện
 
-Dashboard hiển thị 6 box trong 1 màn hình duy nhất:
+Dashboard hiển thị 7 box trong 1 màn hình duy nhất:
 
 ```
 ┌─ CALARCH CONTROL CENTER ──────────────────────────────────────────────┐
@@ -91,8 +91,8 @@ Dashboard hiển thị 6 box trong 1 màn hình duy nhất:
 │ │ Enter=open              │ │                        │                 │
 │ └────────────────────────┘ └────────────────────────┘                 │
 │ ┌── TOOLS ──────────────┐ ┌── STATUS ──────────────┐                 │
-│ │ Notes Games Web:8765   │ │ CPU ████████░░ 62%     │                 │
-│ │ AutoInstall GodMode    │ │ MEM █████████░ 6.2/7.5 │                 │
+│ │ Notes Games Mount Wall │ │ CPU ████████░░ 62%     │                 │
+│ │ Web:8765 AutoInstall   │ │ MEM █████████░ 6.2/7.5 │                 │
 │ │ Enter=open              │ │ Enter=live view  R=ref │                 │
 │ └────────────────────────┘ └────────────────────────┘                 │
 ├───────────────────────────────────────────────────────────────────────┤
@@ -108,7 +108,7 @@ Dashboard hiển thị 6 box trong 1 màn hình duy nhất:
 | 2 | **SERVICES** | Docker, KVM, Ollama, Maint, Rotate, Touch | Checklist toggle |
 | 3 | **FOCUS** | Pomodoro, Website Blocker | Menu Pomodoro/Blocker |
 | 4 | **PROFILES** | Save/Load config profiles | Menu chọn profile |
-| 5 | **TOOLS** | Notes, Games, Web, AutoInstall | Menu tool |
+| 5 | **TOOLS** | Notes, Games, Mount, Wallpaper, Web, AutoInstall | Menu tool |
 | 6 | **STATUS** | Real-time CPU/MEM bars, Eco, Super | Live full-screen view |
 
 ### Mouse Drag-and-Drop
@@ -199,7 +199,75 @@ bash lib/web.sh &
 
 Truy cập: [http://localhost:8765](http://localhost:8765)
 
-Hoặc từ dashboard TUI chọn **5 (Web)**.
+Hoặc từ dashboard TUI chọn **Tools → Web**.
+
+## Drive Manager
+
+Quản lý tất cả partition / volume trên hệ thống:
+
+```bash
+# Từ dashboard: chọn Tools → Drive Manager
+# Hoặc chạy trực tiếp:
+bash lib/mount.sh
+```
+
+### Chức năng
+
+| Mục | Mô tả |
+|-----|-------|
+| **List partitions** | Hiển thị tất cả partition: device, label, size, fstype, mountpoint (màu xanh = mounted, vàng = unmounted) |
+| **Mount** | Chọn partition → tự động mount vào `/mnt/<label>` với options phù hợp (NTFS → ntfs-3g, exfat → exfat-utils, ext4/btrfs → defaults) |
+| **Unmount** | Unmount an toàn, hỗ trợ lazy unmount nếu device busy, hiển thị process đang giữ |
+| **Browse** | Mở file manager tại mount point (thunar/nautilus/dolphin/xdg-open) |
+| **Mount All** | Mount tất cả partition chưa mount (có confirm từng cái) |
+| **Unmount All** | Unmount tất cả partition đã mount (có confirm từng cái) |
+| **Info** | Xem chi tiết partition: UUID, label, kích thước, loại filesystem |
+
+### Mount options tự động theo fstype
+
+| FSType | Mount options |
+|--------|-------------|
+| NTFS / ntfs3 | `-t ntfs-3g -o uid=1000,gid=1000,umask=022,big_writes` |
+| exFAT | `-t exfat -o uid=1000,gid=1000,umask=022` |
+| vfat / FAT32 | `-t vfat -o uid=1000,gid=1000,umask=022` |
+| ext4 / btrfs / xfs | `defaults` |
+
+## Wallpaper Changer
+
+Chọn và đổi wallpaper với preview thumbnail ngay trong terminal:
+
+```bash
+# Từ dashboard: chọn Tools → Wallpaper
+# Hoặc chạy trực tiếp:
+bash lib/wallpaper.sh
+```
+
+### Chức năng
+
+| Mục | Mô tả |
+|-----|-------|
+| **List + Select** | Quét thư mục `~/Pictures/wallpapers/`, chọn ảnh → preview bằng chafa | Apply |
+| **Preview (chafa)** | Render thumbnail ngay trong terminal — xem trước trước khi set (bấm A = Apply, R = Random) |
+| **Random** | Chọn ngẫu nhiên 1 wallpaper từ thư viện |
+| **Import custom** | Copy các file `pascal_*` (Rei Ayanami) vào thư mục wallpapers |
+| **Change engine** | Chuyển giữa hyprpaper (default), swaybg, feh |
+| **Open folder** | Mở thư mục wallpaper trong file manager |
+
+### Wallpaper Engine
+
+- **hyprpaper** (default) — Native Hyprland wallpaper daemon
+- **swaybg** — Dùng cho Sway / Wayland
+- **feh** — Dùng cho X11
+
+Cấu hình trong `calarch.conf`:
+```bash
+WALLPAPER_DIR="$HOME/Pictures/wallpapers"
+WALLPAPER_ENGINE="hyprpaper"
+```
+
+### Custom Wallpaper (Rei Ayanami)
+
+Đặt file `pascal_wallpaper_win.jpg`, `pascal_phone.png`, `pascal_psp.png`, `arch_linux_wallpaper.png` trong thư mục gốc `calarch/`, sau đó dùng **Import custom** trong menu Wallpaper để copy vào thư mục wallpapers.
 
 ## Profiles
 
