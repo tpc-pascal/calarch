@@ -24,7 +24,7 @@ calarch/
     ├── focus.sh, notes.sh, games.sh, mount.sh, wallpaper.sh
     ├── anime.sh, launcher.sh, firefox.sh, neovim.sh
     ├── install.sh, auto-install-arch.sh
-    └── phase0-4.sh, ... (installer phases)
+    └── ...
 ```
 
 ## 🛠 2. Thiết lập môi trường phát triển (Setup)

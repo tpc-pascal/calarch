@@ -37,7 +37,7 @@ Sau khi `archinstall` xong → **chọn "Exit"** (đừng reboot) → calarch t�
 
 ```bash
 bash calarch-v1.0.run               # auto-detect: ISO → menu, installed → setup
-bash calarch-v1.0.run install       # menu (Full Install / Post-Install / Advanced)
+bash calarch-v1.0.run install       # menu (Full Install / Post-Install)
 bash calarch-v1.0.run setup         # God-Mode setup (Hyprland, CPU affinity...)
 bash calarch-v1.0.run post-install  # calarch post-install trên /mnt
 bash calarch-v1.0.run refind        # sinh refind_linux.conf

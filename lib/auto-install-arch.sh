@@ -10,7 +10,6 @@
 #   --install          → archinstall TUI + calarch post-install
 #   --post-install [mnt] → calarch post-install on mounted system
 #   --refind [mnt]     → generate/update refind_linux.conf
-#   --advanced         → legacy 5-phase installer
 # ============================================================================
 
 set -euo pipefail
@@ -217,13 +216,7 @@ post_install() {
 
     [ -d "$user_home/calarch" ] && arch-chroot "$mnt" chown -R "${username}:${username}" "/home/${username}/calarch" 2>/dev/null || true
 
-    # --- 5. Enable NetworkManager for first-boot internet ---
-    if command -v arch-chroot &>/dev/null; then
-        arch-chroot "$mnt" systemctl enable NetworkManager 2>/dev/null || log_warn "Cannot enable NetworkManager"
-        log_success "NetworkManager enabled for first boot"
-    fi
-
-    # --- 6. First-boot setup: welcome + auto-run God-Mode on login ---
+    # --- 5. First-boot setup: welcome + auto-run God-Mode on login ---
     mkdir -p "$mnt/var/lib/godmode"
     touch "$mnt/var/lib/godmode/firstboot-pending"
 
@@ -432,39 +425,7 @@ full_install() {
     esac
 }
 
-# ============================================================================
-# ADVANCED INSTALLER — legacy 5-phase
-# ============================================================================
 
-run_advanced_installer() {
-    log_step "Advanced 5-phase installer"
-
-    die_if_not_iso
-
-    for module in phase0-detect phase1-disk phase2-pacstrap phase3-chroot phase4-finalize; do
-        local mp="$LIB_DIR/$module.sh"
-        [ -f "$mp" ] || log_fatal "Module not found: $mp"
-        source "$mp"
-    done
-
-    clear
-    echo -e "${BOLD}${GREEN}"
-    echo "╔══════════════════════════════════════════════════════════╗"
-    echo "║      ARCH LINUX AUTO INSTALLER — PANASONIC CF-XZ6       ║"
-    echo "║      Dual-boot safe | Btrfs | linux-zen | systemd-boot  ║"
-    echo "╚══════════════════════════════════════════════════════════╝"
-    echo -e "${RESET}"
-    echo ""
-    confirm "Proceed?" "n" || exit 0
-
-    phase0_main
-    phase1_main
-    phase2_main
-    phase3_main
-    phase4_main
-
-    log_success "All phases complete!"
-}
 
 # ============================================================================
 # MENU
@@ -480,10 +441,9 @@ show_menu() {
         echo "  1) Full Install — archinstall TUI + calarch post-install"
         echo "  2) Post-Install Only — chay calarch tren he thong da mount"
         echo "  3) Bootloader Config — sinh refind_linux.conf"
-        echo "  4) Advanced — 5-phase installer (legacy)"
-        echo "  5) Exit"
+        echo "  4) Exit"
         echo ""
-        echo -n "  Select (1-5): "
+        echo -n "  Select (1-4): "
         read -r choice
 
         case "$choice" in
@@ -499,7 +459,6 @@ show_menu() {
                 mnt=$(read_mount_point)
                 generate_refind_config "$mnt"
                 ;;
-            4) run_advanced_installer ;;
             *) exit 0 ;;
         esac
     done
@@ -524,7 +483,6 @@ main() {
             local mnt="${2:-/mnt}"
             generate_refind_config "$mnt"
             ;;
-        --advanced)                  run_advanced_installer ;;
         *)                           show_menu ;;
     esac
 }

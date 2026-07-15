@@ -13,7 +13,7 @@ God-Mode cho Panasonic CF-XZ6 — Arch Linux, Hyprland, CPU Affinity
 
 ## Tính năng
 
-- **Auto Install** — Từ Arch ISO → hệ thống hoàn chỉnh (archinstall TUI + calarch post-install, hoặc 5-phase legacy)
+- **Auto Install** — Từ Arch ISO → hệ thống hoàn chỉnh (archinstall TUI + calarch post-install)
 - **Bulletproof Safety** — Mọi thay đổi đều được backup/rollback, kiểm tra đầu vào, idempotent (chạy lại an toàn)
 - **Super Mode Daemon** — Tự động chuyển COOL (powersave + eco) ↔ HOT (schedutil + full turbo) theo CPU load + compiler process
 - **Dynamic CPU Affinity** — Active window → Core 0,1; Background → Core 2,3
@@ -63,7 +63,7 @@ calarch/
 │   ├── wallpaper.sh             # Wallpaper changer + chafa preview
 │   ├── anime.sh                 # Terminal anime player (Nyaa/YouTube)
 │   ├── common.sh, config.sh     # Shared libraries (installer)
-│   └── phase0-detect.sh … phase4-finalize.sh, cf-xz6-rotator.sh, ...
+│   └── cf-xz6-rotator.sh, ...
 ├── assets/logo.svg
 ├── .github/workflows/release.yml
 ├── CONTRIBUTING.md, CREDITS.md, GUIDE.md, README.md
@@ -109,7 +109,7 @@ nano calarch.conf                   # Sửa tay thoải mái, có comment
 bash lib/web.sh &
 
 # Auto-installer
-bash lib/auto-install-arch.sh       # menu: Full Install / Post-Install / Advanced
+bash lib/auto-install-arch.sh       # menu: Full Install / Post-Install
 
 # Drive Manager (mount/unmount)
 bash lib/mount.sh                   # menu: list, mount, unmount, browse
