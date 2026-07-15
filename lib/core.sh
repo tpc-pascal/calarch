@@ -63,6 +63,10 @@ SCHEMA=(
   "SPOTIFY_THEME|str|||"
   "SPOTIFY_ADBLOCK|enum|||yes,no"
   "NOTES_ENGINE|enum|||emacs-org,obsidian"
+  "MOUNT_BASE|str|||"
+  "WALLPAPER_DIR|str|||"
+  "WALLPAPER_ENGINE|enum|||hyprpaper,swaybg,feh"
+  "WALLPAPER_MONITOR|str|||"
 )
 
 # ============================================================================
@@ -571,4 +575,4 @@ main() {
   esac
 }
 
-main "$@"
+[[ "${BASH_SOURCE[0]}" == "${0}" ]] && main "$@"

@@ -21,7 +21,8 @@ calarch/
     ├── settings.sh       # Legacy settings panel
     ├── super-mode.sh     # Super Mode daemon
     ├── hyprland-event-monitor.sh  # CPU affinity engine
-    ├── focus.sh, notes.sh, games.sh
+    ├── focus.sh, notes.sh, games.sh, mount.sh, wallpaper.sh
+    ├── anime.sh, launcher.sh, firefox.sh, neovim.sh
     ├── install.sh, auto-install-arch.sh
     └── phase0-4.sh, ... (installer phases)
 ```
@@ -51,7 +52,7 @@ core.sh (config I/O + validate + safety)
 **Luồng dữ liệu:**
 1. User thay đổi tham số qua dashboard hoặc sửa `calarch.conf`
 2. `core.sh` validate → snapshot → ghi → apply → grace
-3. Scripts `super-mode.sh`, `hyprland-event-monitor.sh` đọc từ `calarch.conf`
+3. Scripts `super-mode.sh`, `hyprland-event-monitor.sh`, `mount.sh`, `wallpaper.sh` đọc từ `calarch.conf`
 
 ## 🌿 3. Quy trình gửi đóng góp (Git Workflow)
 
