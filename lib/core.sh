@@ -67,6 +67,7 @@ SCHEMA=(
   "WALLPAPER_DIR|str|||"
   "WALLPAPER_ENGINE|enum|||hyprpaper,swaybg,feh"
   "WALLPAPER_MONITOR|str|||"
+  "REFIND_SYNC_ESP|enum|||true,false"
 )
 
 # ============================================================================

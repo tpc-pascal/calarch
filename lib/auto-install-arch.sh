@@ -9,7 +9,8 @@
 #   (no args) → interactive menu
 #   --install          → archinstall TUI + calarch post-install
 #   --post-install [mnt] → calarch post-install on mounted system
-#   --refind [mnt]     → generate/update refind_linux.conf
+#   --refind [mnt]     → generate/update refind_linux.conf + sync kernel to ESP
+#   --refind-sync [mnt] → sync kernel to ESP + manage rEFInd entry + install hook
 #   --advanced         → legacy 5-phase installer
 # ============================================================================
 
@@ -118,6 +119,25 @@ read_mount_point() {
 }
 
 # ============================================================================
+# FSTAB — patch Btrfs compression options
+# ============================================================================
+
+patch_fstab_compression() {
+    local mnt="$1"
+    local fstab="$mnt/etc/fstab"
+    [ ! -f "$fstab" ] && return
+    if grep -q "btrfs" "$fstab" 2>/dev/null; then
+        if ! grep -q "compress=zstd" "$fstab" 2>/dev/null; then
+            backup_file "$fstab"
+            sed -i '/btrfs/ { /compress=zstd/! s/subvol=[^, ]*/&,compress=zstd:3,noatime/ }' "$fstab"
+            log_success "Fstab Btrfs entries patched with compress=zstd:3,noatime"
+        else
+            log_info "Fstab Btrfs already has compression options"
+        fi
+    fi
+}
+
+# ============================================================================
 # POST-INSTALL — calarch setup trên hệ thống đã được cài base
 # ============================================================================
 
@@ -167,6 +187,9 @@ post_install() {
             log_info "Filesystem is ${fstype}, not btrfs — skipping @snapshots"
         fi
     fi
+
+    # --- 2b. Fix fstab Btrfs compression ---
+    patch_fstab_compression "$mnt"
 
     # --- 3. Kernel params ---
     local kparams="$KERNEL_PARAMS"
@@ -319,6 +342,7 @@ FBS
 generate_refind_config() {
     local mnt="${1:-/mnt}"
     local root_dev="${2:-}"
+    local do_sync="${3:-${REFIND_SYNC_ESP:-true}}"  # sync kernel to ESP?
 
     [ -z "$root_dev" ] && root_dev=$(findmnt -n -o SOURCE "$mnt" 2>/dev/null || echo "")
 
@@ -342,6 +366,18 @@ generate_refind_config() {
 REFIND
 
     log_success "refind_linux.conf generated at ${conf_path}"
+
+    # Sync kernel to ESP if enabled
+    if [ "$do_sync" = "true" ]; then
+        local refind_sync="$LIB_DIR/refind-sync.sh"
+        if [ -f "$refind_sync" ]; then
+            log_info "Syncing kernel to ESP for rEFInd..."
+            bash "$refind_sync" --mnt "$mnt" || log_warn "refind-sync.sh failed (non-fatal)"
+        else
+            log_warn "refind-sync.sh not found at $refind_sync"
+            log_warn "Copy kernel manually: cp /boot/vmlinuz-linux-zen <ESP>/EFI/arch/"
+        fi
+    fi
 }
 
 # ============================================================================
@@ -479,9 +515,10 @@ show_menu() {
         echo ""
         echo "  1) Full Install — archinstall TUI + calarch post-install"
         echo "  2) Post-Install Only — chay calarch tren he thong da mount"
-        echo "  3) Bootloader Config — sinh refind_linux.conf"
-        echo "  4) Advanced — 5-phase installer (legacy)"
-        echo "  5) Exit"
+        echo "  3) Bootloader Config — sinh refind_linux.conf + sync kernel to ESP (refind-sync)"
+        echo "  4) rEFInd Kernel Sync — copy kernel to ESP + manage entry + install hook"
+        echo "  5) Advanced — 5-phase installer (legacy)"
+        echo "  6) Exit"
         echo ""
         echo -n "  Select (1-5): "
         read -r choice
@@ -497,9 +534,13 @@ show_menu() {
                 ;;
             3)
                 mnt=$(read_mount_point)
-                generate_refind_config "$mnt"
+                generate_refind_config "$mnt" "" "true"
                 ;;
-            4) run_advanced_installer ;;
+            4)
+                mnt=$(read_mount_point "Mount point (system)")
+                bash "$LIB_DIR/refind-sync.sh" --mnt "$mnt"
+                ;;
+            5) run_advanced_installer ;;
             *) exit 0 ;;
         esac
     done
@@ -523,6 +564,15 @@ main() {
         --refind|--bootloader)
             local mnt="${2:-/mnt}"
             generate_refind_config "$mnt"
+            ;;
+        --refind-sync)
+            local mnt="${2:-/mnt}"
+            local refind_sync="$LIB_DIR/refind-sync.sh"
+            if [ -f "$refind_sync" ]; then
+                bash "$refind_sync" --mnt "$mnt"
+            else
+                log_fatal "refind-sync.sh not found"
+            fi
             ;;
         --advanced)                  run_advanced_installer ;;
         *)                           show_menu ;;

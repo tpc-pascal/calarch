@@ -88,9 +88,9 @@ phase1_create_partitions() {
         sudo parted -s "$INSTALL_DISK" mklabel gpt
 
     # Get disk size in MB
-    local disk_size_mb
-    disk_size_mb=$(lsblk -d -o SIZE -b "$INSTALL_DISK" 2>/dev/null | tail -1 | numfmt --from=iec --to-unit=1024 2>/dev/null || echo 0)
-    disk_size_mb=$((disk_size_mb / 1024))
+    local disk_size_bytes
+    disk_size_bytes=$(lsblk -d -o SIZE -b "$INSTALL_DISK" 2>/dev/null | tail -1 | grep -oP '^\d+' || echo 0)
+    local disk_size_mb=$((disk_size_bytes / 1048576))
     local disk_size_gb=$((disk_size_mb / 1024))
 
     if [ "$disk_size_gb" -lt "$MIN_DISK_SIZE_GB" ]; then

@@ -30,6 +30,7 @@ God-Mode cho Panasonic CF-XZ6 — Arch Linux, Hyprland, CPU Affinity
 - **Games** — minetest, assaultcube, megaglest (Arch official repo)
 - **Drive Manager** — Liệt kê tất cả partition, mount/unmount với auto-detect fstype (NTFS, exfat, vfat, ext4…), browse file manager
 - **Wallpaper Changer** — Chafa preview thumbnail, set wallpaper (hyprpaper/swaybg/feh), random, import custom ảnh
+- **rEFInd ESP Kernel Sync** — Tự động copy kernel + initramfs ra phân vùng ESP (FAT32) để rEFInd có thể đọc được (khắc phục lỗi rEFInd không hỗ trợ Btrfs nén zstd). Có pacman hook tự động sync sau mỗi `pacman -Syu`
 
 ---
 
@@ -62,6 +63,7 @@ calarch/
 │   ├── mount.sh                 # Drive / Volume Manager
 │   ├── wallpaper.sh             # Wallpaper changer + chafa preview
 │   ├── anime.sh                 # Terminal anime player (Nyaa/YouTube)
+│   ├── refind-sync.sh           # rEFInd ESP kernel sync + entry manager + pacman hook
 │   ├── common.sh, config.sh     # Shared libraries (installer)
 │   └── phase0-detect.sh … phase4-finalize.sh, cf-xz6-rotator.sh, ...
 ├── assets/logo.svg
@@ -86,6 +88,7 @@ calarch/
 | Storage | Btrfs (zstd:3, noatime), ZRAM 8GB (zstd) |
 | AI | Ollama (qwen2.5-coder) + OpenCode |
 | Safety | Grace period auto-revert, boot guard, undo history, config validation |
+| rEFInd Sync | Tự động copy kernel → ESP, quản lý entry, pacman hook PostTransaction |
 | CI/CD | GitHub Actions → .run release |
 | Device | Panasonic CF-XZ6 (Core i5-7300U, 8GB LPDDR3, HD620) |
 
@@ -116,6 +119,10 @@ bash lib/mount.sh                   # menu: list, mount, unmount, browse
 
 # Wallpaper Changer (preview + set)
 bash lib/wallpaper.sh               # menu: select, random, import, engine
+
+# rEFInd ESP Kernel Sync (khắc phục rEFInd không thấy Arch trên Btrfs+zstd)
+bash lib/refind-sync.sh             # sync kernel ra ESP + tạo entry + cài hook
+bash lib/refind-sync.sh --check     # kiểm tra trạng thái
 ```
 
 ### Live Dashboard
@@ -171,6 +178,7 @@ BLOCKER_SITES="facebook.com,..."# Sites cần chặn
 MOUNT_BASE="/mnt"                   # Thư mục mount
 WALLPAPER_DIR="$HOME/Pictures/wallpapers" # Thư mục wallpaper
 WALLPAPER_ENGINE="hyprpaper"        # Engine: hyprpaper, swaybg, feh
+REFIND_SYNC_ESP="true"              # Tự động copy kernel ra ESP cho rEFInd
 ```
 
 Thay đổi qua dashboard hoặc sửa tay — đều có validate + safety.

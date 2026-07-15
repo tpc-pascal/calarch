@@ -40,7 +40,8 @@ bash calarch-v1.0.run               # auto-detect: ISO → menu, installed → s
 bash calarch-v1.0.run install       # menu (Full Install / Post-Install / Advanced)
 bash calarch-v1.0.run setup         # God-Mode setup (Hyprland, CPU affinity...)
 bash calarch-v1.0.run post-install  # calarch post-install trên /mnt
-bash calarch-v1.0.run refind        # sinh refind_linux.conf
+bash calarch-v1.0.run refind        # sinh refind_linux.conf + sync kernel to ESP
+bash calarch-v1.0.run refind-sync   # sync kernel to ESP + manage entry + install hook
 bash calarch-v1.0.run shell         # extracted env
 bash calarch-v1.0.run check         # kiểm tra trạng thái
 ```
@@ -50,9 +51,39 @@ bash calarch-v1.0.run check         # kiểm tra trạng thái
 ```bash
 cd calarch
 bash lib/auto-install-arch.sh --post-install /mnt   # chạy post-install
-# Hoặc chỉ generate refind_linux.conf:
+# Generate refind_linux.conf + sync kernel to ESP:
 bash lib/auto-install-arch.sh --refind /mnt
+# Hoặc chỉ sync kernel ra ESP (nếu rEFInd không thấy Arch):
+bash lib/refind-sync.sh --mnt /mnt
 ```
+
+### Kiểm tra và sửa lỗi rEFInd không thấy Arch
+
+Nếu sau khi cài Arch, rEFInd không hiển thị Arch trong menu boot, nguyên nhân thường là:
+- rEFInd EFI driver **không hỗ trợ Btrfs có nén zstd** → không đọc được kernel ở `/boot/vmlinuz-*`
+- `refind_linux.conf` nằm trên phân vùng Btrfs → rEFInd không thấy
+
+**Cách fix nhanh:**
+
+```bash
+# 1. Chạy từ hệ thống đã cài Arch
+cd ~/calarch
+bash lib/refind-sync.sh
+
+# 2. Kiểm tra trạng thái
+bash lib/refind-sync.sh --check
+
+# 3. Nếu muốn chạy thủ công từng bước (khi đang mount từ USB)
+bash lib/refind-sync.sh --mnt /mnt
+```
+
+Script sẽ tự động:
+1. Phát hiện phân vùng ESP
+2. Copy kernel + initramfs vào `ESP:/EFI/arch/`
+3. Thêm entry vào `ESP:/EFI/refind/refind.conf`
+4. Cài pacman hook để tự động sync sau mỗi lần cập nhật kernel
+
+Sau đó reboot → rEFInd sẽ hiển thị "Arch Linux (linux-zen)" trong menu.
 
 ### Sau reboot — tự động hoàn toàn
 
@@ -172,6 +203,19 @@ Mọi tham số tập trung tại 1 file duy nhất ở thư mục gốc:
 ```bash
 nano ~/calarch/calarch.conf
 ```
+
+### rEFInd ESP Kernel Sync
+
+| Key | Giá trị | Mô tả |
+|-----|---------|-------|
+| `REFIND_SYNC_ESP` | `true` / `false` | Tự động copy kernel + initramfs ra ESP (FAT32) để rEFInd đọc được. Mặc định `true`. Đặt `false` nếu bạn dùng bootloader khác hoặc không cần sync. |
+
+Khi `REFIND_SYNC_ESP=true` (mặc định), calarch sẽ:
+- Trong quá trình cài đặt: tự động copy kernel ra ESP + tạo entry rEFInd + cài pacman hook
+- Sau mỗi lần `pacman -Syu` (cập nhật kernel): pacman hook tự động chạy, không cần can thiệp
+- Khi chạy `bash lib/refind-sync.sh` thủ công: re-sync kernel + cập nhật entry
+
+**Lưu ý:** Tính năng này giải quyết lỗi rEFInd không đọc được phân vùng Btrfs có nén zstd. Nếu bạn dùng ext4 hoặc Btrfs không nén, có thể tắt bằng `REFIND_SYNC_ESP=false`.
 
 File có comment đầy đủ, dễ hiểu. Thay đổi được áp dụng qua `core.sh`:
 
@@ -366,3 +410,81 @@ Monitor CPU load mỗi 2 giây:
 - Fallback: base64/openssl/python3/perl + tar/bsdtar + git clone
 - Từ chối chạy root
 - flock mutex, resume flags
+
+## rEFInd ESP Kernel Sync — `lib/refind-sync.sh`
+
+Công cụ tự động copy kernel + initramfs ra phân vùng ESP để rEFInd có thể đọc được, giải quyết triệt để lỗi "Arch không hiện trong rEFInd menu" khi dùng Btrfs có nén zstd.
+
+### Cách hoạt động
+
+```
+┌──────────────┐         ┌──────────────────────┐
+│  /boot/      │  copy   │  ESP:/EFI/arch/       │
+│  vmlinuz-*   │ ──────→ │  vmlinuz-linux-zen    │
+│  initramfs   │         │  initramfs-*.img      │
+│  intel-ucode │         │  intel-ucode.img      │
+│  (Btrfs+zstd)│         │  (FAT32 → rEFInd đọc) │
+└──────────────┘         └──────────────────────┘
+                                │
+                                ▼
+                         ┌──────────────────────┐
+                         │  ESP:/EFI/refind/     │
+                         │  refind.conf          │
+                         │  +menuentry "Arch..." │
+                         └──────────────────────┘
+```
+
+### Các chế độ chạy
+
+| Lệnh | Mô tả |
+|------|-------|
+| `bash lib/refind-sync.sh` | Sync kernel ra ESP + tạo entry + cài hook (từ hệ thống đã cài) |
+| `bash lib/refind-sync.sh --mnt /mnt` | Sync từ môi trường ISO (khi mount hệ thống ở /mnt) |
+| `bash lib/refind-sync.sh --esp /dev/sdX1` | Chỉ định ESP thủ công (bỏ qua auto-detect) |
+| `bash lib/refind-sync.sh --check` | Kiểm tra trạng thái: kernel, ESP, rEFInd entry, hook |
+| `bash lib/refind-sync.sh --install-hook` | Chỉ cài pacman hook (không sync kernel) |
+
+### Edge cases được xử lý
+
+| Case | Xử lý |
+|------|-------|
+| Nhiều ESP | Tự động chọn ESP có rEFInd hoặc đang được mount |
+| rEFInd chưa cài | Warn, vẫn copy kernel nhưng skip entry generation |
+| AMD CPU (`amd-ucode.img`) | Tự động phát hiện CPU vendor, copy ucode tương ứng |
+| Nhiều kernels (linux, linux-zen, linux-lts) | Phát hiện và sync tất cả, tạo entry riêng cho mỗi kernel |
+| ESP sắp đầy | Kiểm tra dung lượng trước khi copy, cảnh báo nếu < 50MB |
+| FAT32 4GB limit | Kiểm tra kích thước file initramfs, cảnh báo nếu > 4GB |
+| ESP đã mount sẵn | Phát hiện, không unmount khi kết thúc |
+| Chạy nhiều lần | Dùng marker trong refind.conf (`# --- calarch: begin/end ---`) để idempotent |
+| ext4 root (không nén) | Vẫn sync (consistency, không ảnh hưởng gì) |
+
+### Pacman Hook
+
+Sau khi chạy `refind-sync.sh`, một pacman hook được cài tại:
+- `/etc/pacman.d/hooks/calarch-sync-kernel.hook`
+- Script: `/usr/local/bin/calarch-sync-kernel.sh`
+
+Hook tự động chạy sau mỗi lần cập nhật:
+- `linux`, `linux-zen`, `linux-lts`, `linux-hardened`
+- `intel-ucode`, `amd-ucode`
+
+Không cần can thiệp thủ công sau mỗi `pacman -Syu`.
+
+### Gỡ cài đặt
+
+Nếu muốn tắt tính năng:
+
+```bash
+# 1. Tắt trong config
+sed -i 's/REFIND_SYNC_ESP=true/REFIND_SYNC_ESP=false/' ~/calarch/calarch.conf
+
+# 2. Xóa hook
+sudo rm -f /etc/pacman.d/hooks/calarch-sync-kernel.hook
+
+# 3. Xóa script
+sudo rm -f /usr/local/bin/calarch-sync-kernel.sh
+
+# 4. Xóa entry trong refind.conf (thủ công)
+sudo nano $(findmnt -n -o TARGET /boot)/EFI/refind/refind.conf
+# Xóa block giữa # --- calarch: begin --- và # --- calarch: end ---
+```
