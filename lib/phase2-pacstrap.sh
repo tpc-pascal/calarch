@@ -31,14 +31,19 @@ phase2_fstab() {
     run_cmd "Generate fstab" \
         sudo genfstab -U /mnt > "$fstab_file"
 
-    # Ensure Btrfs mount options include compress
-    # genfstab doesn't always preserve subvol mount options correctly
-    # We fix them here
-    if grep -q "/mnt/home" "$fstab_file" 2>/dev/null; then
-        log_info "Fstab generated with subvolume entries"
+    sudo cp "$fstab_file" /mnt/etc/fstab
+
+    # Fix Btrfs entries to include compress=zstd:3,noatime
+    # genfstab -U does not preserve mount options
+    if grep -q "btrfs" /mnt/etc/fstab 2>/dev/null; then
+        if ! grep -q "compress=zstd" /mnt/etc/fstab 2>/dev/null; then
+            sudo sed -i '/btrfs/ { /compress=zstd/! s/subvol=[^, ]*/&,compress=zstd:3,noatime/ }' /mnt/etc/fstab
+            log_success "Fstab Btrfs entries patched with compress=zstd:3,noatime"
+        else
+            log_info "Fstab Btrfs already has compression options"
+        fi
     fi
 
-    sudo cp "$fstab_file" /mnt/etc/fstab
     log_success "Fstab written"
 }
 

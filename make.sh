@@ -206,6 +206,10 @@ main() {
             echo "  Mode: REFIND CONFIG"
             exec bash lib/auto-install-arch.sh --refind "\${@:2}"
             ;;
+        refind-sync|--refind-sync)
+            echo "  Mode: REFIND KERNEL SYNC"
+            exec bash lib/auto-install-arch.sh --refind-sync "\${@:2}"
+            ;;
         help|--help|-h)
             echo "Usage: \$0 [mode]"
             echo ""
@@ -214,6 +218,7 @@ main() {
             echo "  post-install  calarch setup tren he thong da mount"
             echo "  setup         God-Mode system setup (sau khi cai Arch)"
             echo "  refind        Sinh refind_linux.conf cho rEFInd"
+            echo "  refind-sync   Dong bo kernel ra ESP + sinh entry rEFInd + cai hook"
             echo "  shell         Bash trong extracted environment"
             echo "  check         Kiem tra trang thai"
             echo "  help          This help"

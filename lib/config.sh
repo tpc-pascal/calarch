@@ -28,6 +28,11 @@ SWAPFILE_PATH="${CALARCH_SWAPFILE_PATH:-/.swapfile}"
 # --- Kernel params for CF-XZ6 ---
 KERNEL_PARAMS="nowatchdog processor.max_cstate=4 intel_idle.max_cstate=4 i915.enable_fbc=1 i915.enable_psr=1 i915.enable_rc6=1 i915.fastboot=1 mitigations=off pcie_aspm=force"
 
+# --- rEFInd ESP kernel sync ---
+# Tu dong copy kernel + initramfs ra ESP de rEFInd doc duoc (FAT32)
+# (rEFInd EFI Btrfs driver khong ho tro nen zstd)
+REFIND_SYNC_ESP="${CALARCH_REFIND_SYNC_ESP:-true}"
+
 # --- Packages to pacstrap ---
 BASE_PACKAGES=(
     base base-devel

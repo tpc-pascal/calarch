@@ -24,6 +24,7 @@ calarch/
     ├── focus.sh, notes.sh, games.sh, mount.sh, wallpaper.sh
     ├── anime.sh, launcher.sh, firefox.sh, neovim.sh
     ├── install.sh, auto-install-arch.sh
+    ├── refind-sync.sh     # rEFInd ESP kernel sync + entry + hook
     └── phase0-4.sh, ... (installer phases)
 ```
 

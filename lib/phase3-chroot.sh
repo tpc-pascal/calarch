@@ -110,12 +110,16 @@ if [ "${USE_SWAPFILE:-0}" = "1" ] && [ -n "${INSTALL_SWAPFILE:-}" ]; then
 fi
 
 echo ">>> Configuring mkinitcpio..."
-sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block encrypt filesystems fsck btrfs)/' /etc/mkinitcpio.conf
+if [ "${USE_ENCRYPTION:-0}" = "1" ]; then
+    sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block encrypt filesystems fsck btrfs)/' /etc/mkinitcpio.conf
+else
+    sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block filesystems fsck btrfs)/' /etc/mkinitcpio.conf
+fi
 mkinitcpio -P
 
-# --- Bootloader (skip if no ESP) ---
+# --- Bootloader ---
 if [ -n "${INSTALL_ESP:-}" ]; then
-    echo ">>> Installing bootloader..."
+    echo ">>> Installing systemd-boot..."
     bootctl install
 
     # Get root PARTUUID
@@ -135,17 +139,34 @@ timeout 3
 console-mode max
 editor no
 LOADER_CONF
+    echo ">>> systemd-boot installed"
 else
     echo ">>> WARNING: No ESP configured. Skipping bootloader install."
-    echo ">>> Generating refind_linux.conf for rEFInd auto-detection..."
+fi
 
-    ROOT_PARTUUID=$(blkid -s PARTUUID -o value "${INSTALL_ROOT}")
-    cat > /boot/refind_linux.conf << REFIND_EOF
+# --- refind_linux.conf (always, as fallback) ---
+echo ">>> Generating /boot/refind_linux.conf for rEFInd..."
+ROOT_PARTUUID=$(blkid -s PARTUUID -o value "${INSTALL_ROOT}")
+cat > /boot/refind_linux.conf << REFIND_EOF
 "Boot with defaults"  "root=PARTUUID=${ROOT_PARTUUID} rw rootflags=subvol=@ ${KERNEL_PARAMS}"
 "Boot to single-user" "root=PARTUUID=${ROOT_PARTUUID} rw rootflags=subvol=@ single ${KERNEL_PARAMS}"
 "Boot with minimal"   "root=PARTUUID=${ROOT_PARTUUID} rw rootflags=subvol=@ ${KERNEL_PARAMS}"
 REFIND_EOF
-    echo ">>> refind_linux.conf created — rEFInd will auto-detect Arch on next boot."
+echo ">>> refind_linux.conf created"
+
+# --- rEFInd ESP kernel sync ---
+if [ "${REFIND_SYNC_ESP:-true}" = "true" ]; then
+    if [ -f /usr/local/bin/refind-sync.sh ]; then
+        echo ">>> Syncing kernel to ESP for rEFInd..."
+        bash /usr/local/bin/refind-sync.sh || echo "WARNING: refind-sync.sh failed"
+    fi
+fi
+
+# --- Fix fstab Btrfs compression ---
+if grep -q "btrfs" /etc/fstab 2>/dev/null && ! grep -q "compress=zstd" /etc/fstab 2>/dev/null; then
+    echo ">>> Patching fstab Btrfs compression..."
+    sed -i '/btrfs/ { /compress=zstd/! s/subvol=[^, ]*/&,compress=zstd:3,noatime/ }' /etc/fstab
+    echo ">>> Fstab patched with compress=zstd:3,noatime"
 fi
 
 echo ">>> Enabling services..."
@@ -160,6 +181,17 @@ touch /var/lib/godmode/firstboot-pending
 
 echo ">>> CHROOT CONFIGURATION COMPLETE"
 CHROOT_SCRIPT
+
+    # Copy refind-sync.sh into chroot for kernel sync
+    local refind_sync_src="$LIB_DIR/refind-sync.sh"
+    if [ -f "$refind_sync_src" ]; then
+        sudo mkdir -p /mnt/usr/local/bin
+        sudo cp "$refind_sync_src" /mnt/usr/local/bin/refind-sync.sh
+        sudo chmod +x /mnt/usr/local/bin/refind-sync.sh
+        log_info "refind-sync.sh copied to chroot: /usr/local/bin/refind-sync.sh"
+    else
+        log_warn "refind-sync.sh not found at $refind_sync_src — kernel sync will be skipped"
+    fi
 
     # Copy state + script into /mnt
     sudo cp "$STATE_FILE" /mnt/tmp/arch-install-state.sh
@@ -181,6 +213,8 @@ phase3_main() {
 
     # Set defaults from config
     INSTALL_TIMEZONE="$DEFAULT_TIMEZONE"
+    REFIND_SYNC_ESP="${REFIND_SYNC_ESP:-true}"
+    save_state
 
     phase3_ask_credentials
     phase3_chroot_commands
