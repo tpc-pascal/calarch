@@ -158,9 +158,17 @@ post_install() {
 
     # --- 1. Root partition device ---
     local root_dev
-    root_dev=$(findmnt -n -o SOURCE "$mnt" 2>/dev/null || echo "")
+    root_dev=$(findmnt -n -o SOURCE "$mnt" 2>/dev/null || true)
     if [ -z "$root_dev" ]; then
-        root_dev=$(findmnt -n -o SOURCE --target "$mnt" 2>/dev/null || echo "")
+        root_dev=$(findmnt -n -o SOURCE --target "$mnt" 2>/dev/null || true)
+    fi
+    if [ -z "$root_dev" ]; then
+        root_dev=$(lsblk -nlo NAME,MOUNTPOINT | awk -v m="$mnt" '$2==m {print "/dev/"$1; exit}' 2>/dev/null || true)
+    fi
+    if [ -z "$root_dev" ]; then
+        local uuid
+        uuid=$(findmnt -n -o UUID "$mnt" 2>/dev/null || true)
+        [ -n "$uuid" ] && root_dev=$(blkid -U "$uuid" 2>/dev/null || true)
     fi
     [ -n "$root_dev" ] && log_info "Root device: ${root_dev}" || log_warn "Cannot detect root device"
 
@@ -344,13 +352,22 @@ generate_refind_config() {
     local root_dev="${2:-}"
     local do_sync="${3:-${REFIND_SYNC_ESP:-true}}"  # sync kernel to ESP?
 
-    [ -z "$root_dev" ] && root_dev=$(findmnt -n -o SOURCE "$mnt" 2>/dev/null || echo "")
+    [ -z "$root_dev" ] && root_dev=$(findmnt -n -o SOURCE "$mnt" 2>/dev/null || true)
+    [ -z "$root_dev" ] && root_dev=$(lsblk -nlo NAME,MOUNTPOINT | awk -v m="$mnt" '$2==m {print "/dev/"$1; exit}' 2>/dev/null || true)
 
     local partuuid=""
-    [ -n "$root_dev" ] && partuuid=$(blkid -s PARTUUID -o value "$root_dev" 2>/dev/null || echo "")
+    [ -n "$root_dev" ] && partuuid=$(blkid -s PARTUUID -o value "$root_dev" 2>/dev/null || true)
 
     if [ -z "$partuuid" ]; then
-        log_warn "Cannot detect PARTUUID, refind_linux.conf will use placeholder"
+        log_error "KHONG the tu dong detect PARTUUID cua root partition"
+        log_error "De fix th cong, lam theo cac buoc sau:"
+        log_error "  1. Boot lai tu Arch ISO"
+        log_error "  2. Mount root partition: mount -o subvol=@ /dev/ROOT /mnt"
+        log_error "  3. Lay PARTUUID: blkid -s PARTUUID -o value /dev/ROOT"
+        log_error "  4. Sua file: sed -i 's/PLACEHOLDER/<GIA_TRI>/g' /mnt/boot/refind_linux.conf"
+        log_error "  5. Reboot"
+        log_error ""
+        log_error "Hoac chay: sudo bash lib/post-install.sh fix-partuuid /mnt <PARTUUID>"
         partuuid="PLACEHOLDER_PARTUUID"
     fi
 

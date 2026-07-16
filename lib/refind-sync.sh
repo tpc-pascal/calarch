@@ -659,8 +659,16 @@ main() {
     local kernel_params
     kernel_params=$(get_kernel_params "$MNT")
 
-    log_i "Syncing kernel(s) to ESP..."
-    sync_to_esp "$esp_mnt" "$boot_dir"
+    # Check if /boot is already ESP (kernel already on FAT32)
+    local boot_dev boot_fstype
+    boot_dev=$(findmnt -n -o SOURCE "$boot_dir" 2>/dev/null || true)
+    boot_fstype=$(findmnt -n -o FSTYPE "$boot_dir" 2>/dev/null || true)
+    if [ "$boot_fstype" = "vfat" ] || [ "$boot_fstype" = "fat" ]; then
+        log_i "/boot la FAT32 (ESP) — kernel da san tren ESP, bo qua copy"
+    else
+        log_i "Syncing kernel(s) to ESP..."
+        sync_to_esp "$esp_mnt" "$boot_dir"
+    fi
 
     if [ -n "$partuuid" ]; then
         log_i "Updating rEFInd entry..."
