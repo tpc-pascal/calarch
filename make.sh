@@ -162,8 +162,8 @@ main() {
     local mode="\${1:-auto}"
 
     if [ "\$mode" = "auto" ]; then
-        if [ "\$env" = "iso" ] && [ -f lib/auto-install-arch.sh ]; then
-            mode="install"
+        if [ "\$env" = "iso" ]; then
+            mode="post-install"
         elif [ "\$env" = "installed" ]; then
             mode="setup"
         else
@@ -172,20 +172,10 @@ main() {
     fi
 
     case "\$mode" in
-        install|--install)
-            echo "  Mode: FULL INSTALL (archinstall TUI + calarch)"
-            echo "  Env:  Live ISO"
-            exec bash lib/auto-install-arch.sh --install "\${@:2}"
-            ;;
-        --quick)
-            echo "  Mode: FULL INSTALL (archinstall TUI + calarch)"
-            echo "  Env:  Live ISO"
-            exec bash lib/auto-install-arch.sh --install "\${@:2}"
-            ;;
         post-install|--post-install)
             echo "  Mode: POST-INSTALL"
             echo "  Env:  \${env}"
-            exec bash lib/auto-install-arch.sh --post-install "\${@:2}"
+            exec bash lib/post-install.sh post-install "\${@:2}"
             ;;
         setup)
             echo "  Mode: GODMODE SETUP"
@@ -200,25 +190,29 @@ main() {
             echo "  Version:  \${VERSION}"
             echo "  Cache:    \$(cache_valid && echo "Valid at \${EXTRACT_DIR}" || echo "None")"
             echo "  Files:    \$(find . -type f 2>/dev/null | wc -l)"
-            echo "  Commands: install, post-install, setup, refind, shell, check, help"
+            echo "  Commands: post-install, setup, refind, refind-sync, fix-partuuid, shell, check, help"
             ;;
         refind|--refind)
             echo "  Mode: REFIND CONFIG"
-            exec bash lib/auto-install-arch.sh --refind "\${@:2}"
+            exec bash lib/post-install.sh refind "\${@:2}"
             ;;
         refind-sync|--refind-sync)
             echo "  Mode: REFIND KERNEL SYNC"
-            exec bash lib/auto-install-arch.sh --refind-sync "\${@:2}"
+            exec bash lib/refind-sync.sh --mnt "\${@:2}"
+            ;;
+        fix-partuuid|--fix-partuuid)
+            echo "  Mode: FIX PARTUUID"
+            exec bash lib/post-install.sh fix-partuuid "\${@:2}" "\${3:-}"
             ;;
         help|--help|-h)
             echo "Usage: \$0 [mode]"
             echo ""
             echo "Modes (auto-detect if omitted):"
-            echo "  install       Full: archinstall TUI + calarch post-install (recommended)"
             echo "  post-install  calarch setup tren he thong da mount"
-            echo "  setup         God-Mode system setup (sau khi cai Arch)"
-            echo "  refind        Sinh refind_linux.conf cho rEFInd"
-            echo "  refind-sync   Dong bo kernel ra ESP + sinh entry rEFInd + cai hook"
+            echo "  setup         Unified TUI menu"
+            echo "  refind        Sinh refind_linux.conf"
+            echo "  refind-sync   Dong bo kernel ra ESP + entry + hook"
+            echo "  fix-partuuid  Sua PARTUUID trong refind_linux.conf"
             echo "  shell         Bash trong extracted environment"
             echo "  check         Kiem tra trang thai"
             echo "  help          This help"

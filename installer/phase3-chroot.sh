@@ -122,8 +122,17 @@ if [ -n "${INSTALL_ESP:-}" ]; then
     echo ">>> Installing systemd-boot..."
     bootctl install
 
+    # Detect root device
+    local root_dev="${INSTALL_ROOT:-}"
+    if [ -z "$root_dev" ]; then
+        root_dev=$(findmnt -n -o SOURCE / 2>/dev/null || true)
+    fi
+    [ -n "$root_dev" ] && echo ">>> Root device: ${root_dev}" || echo ">>> WARNING: Cannot detect root device"
+
     # Get root PARTUUID
-    ROOT_PARTUUID=$(blkid -s PARTUUID -o value "${INSTALL_ROOT}")
+    ROOT_PARTUUID=""
+    [ -n "$root_dev" ] && ROOT_PARTUUID=$(blkid -s PARTUUID -o value "$root_dev" 2>/dev/null || true)
+    [ -z "$ROOT_PARTUUID" ] && echo ">>> WARNING: Cannot detect PARTUUID. Will use placeholder."
 
     cat > /boot/loader/entries/arch.conf << LOADER_EOF
 title   Arch Linux (linux-zen)
@@ -146,7 +155,13 @@ fi
 
 # --- refind_linux.conf (always, as fallback) ---
 echo ">>> Generating /boot/refind_linux.conf for rEFInd..."
-ROOT_PARTUUID=$(blkid -s PARTUUID -o value "${INSTALL_ROOT}")
+local root_dev="${INSTALL_ROOT:-}"
+if [ -z "$root_dev" ]; then
+    root_dev=$(findmnt -n -o SOURCE / 2>/dev/null || true)
+fi
+ROOT_PARTUUID=""
+[ -n "$root_dev" ] && ROOT_PARTUUID=$(blkid -s PARTUUID -o value "$root_dev" 2>/dev/null || true)
+[ -z "$ROOT_PARTUUID" ] && echo ">>> WARNING: Cannot detect PARTUUID. Must fix manually after reboot."
 cat > /boot/refind_linux.conf << REFIND_EOF
 "Boot with defaults"  "root=PARTUUID=${ROOT_PARTUUID} rw rootflags=subvol=@ ${KERNEL_PARAMS}"
 "Boot to single-user" "root=PARTUUID=${ROOT_PARTUUID} rw rootflags=subvol=@ single ${KERNEL_PARAMS}"

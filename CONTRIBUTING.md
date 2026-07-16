@@ -1,108 +1,65 @@
-# Hướng dẫn Đóng góp (Contributing Guidelines)
+## Dong gop
 
-Vui lòng đọc kỹ các hướng dẫn dưới đây trước khi bắt đầu đóng góp.
+### Yeu cau
 
----
+- Bash 5.0+, `set -euo pipefail`
+- Tuan thu coding convention cua du an
+- Moi PR vao nhanh `dev`
 
-## 🛠 1. Cấu trúc dự án
+### Coding Convention
+
+- Khong comment giai thich code (tru khi that su can)
+- Function name: `snake_case`
+- Bien local: `local_name`
+- Hang: `UPPER_CASE`
+- Kiem tra `set -euo pipefail` o dau moi script
+- Dung `has() { command -v "$1" &>/dev/null; }` de kiem tra lenh
+
+### Cau truc thu muc
 
 ```
 calarch/
-├── calarch.conf          # Config trung tâm — sửa tay thoải mái
-├── start.sh              # Thin wrapper → dashboard.sh
-├── make.sh               # Builder → .run release
-├── profiles/             # Preset config snapshots
-├── web/index.html        # Web dashboard (Chart.js)
-└── lib/
-    ├── core.sh           # ⭐ Config I/O + Validate + Safety + Profile
-    ├── dashboard.sh      # Live TUI dashboard
-    ├── web.sh            # Python HTTP server (localhost:8765)
-    ├── tui.sh            # TUI abstraction (dialog/whiptail)
-    ├── settings.sh       # Legacy settings panel
-    ├── super-mode.sh     # Super Mode daemon
-    ├── hyprland-event-monitor.sh  # CPU affinity engine
-    ├── focus.sh, notes.sh, games.sh, mount.sh, wallpaper.sh
-    ├── anime.sh, launcher.sh, firefox.sh, neovim.sh
-    ├── install.sh, auto-install-arch.sh
-    ├── refind-sync.sh     # rEFInd ESP kernel sync + entry + hook
-    └── phase0-4.sh, ... (installer phases)
+├── start.sh                     # Unified TUI — entry point duy nhat
+├── lib/                         # Thu vien chinh
+│   ├── post-install.sh          # Post-install setup
+│   ├── tui-core.sh              # TUI engine
+│   ├── system.sh                # System monitor
+│   ├── settings.sh              # Settings panel
+│   ├── mount.sh                 # Drive manager
+│   ├── wallpaper.sh             # Wallpaper changer
+│   ├── focus.sh                 # Focus mode
+│   ├── notes.sh                 # Notes manager
+│   ├── games.sh                 # Games launcher
+│   ├── refind-sync.sh           # rEFInd sync
+│   ├── profiles.sh              # Profile manager
+│   ├── safety.sh                # Safety engine
+│   ├── core.sh                  # Config I/O + Safety + Profile
+│   ├── dashboard.sh             # Legacy dashboard
+│   ├── ... (cac script khac)
+├── installer/                   # Legacy installer
+│   └── auto-install-arch.sh
+├── calarch.conf                 # Config trung tam
+├── make.sh                      # Builder
 ```
 
-## 🛠 2. Thiết lập môi trường phát triển (Setup)
+### Chay thu
 
 ```bash
-git clone https://github.com/tpc-pascal/calarch.git
 cd calarch
-shellcheck calarch.conf start.sh make.sh lib/*.sh    # Lint
-bash -n calarch.conf start.sh make.sh lib/*.sh       # Syntax
-bash make.sh                                          # Build release
-bash calarch-*.run check                              # Verify
+bash lib/tui.sh                  # Kiem tra dialog co san
+bash lib/core.sh get KERNEL_PARAMS  # Doc config
+bash start.sh                    # Mo TUI
 ```
 
----
-
-### Kiến trúc chính
-
-```
-core.sh (config I/O + validate + safety)
-   ├── super-mode.sh, hyprland-event-monitor.sh, focus.sh   (đọc từ config)
-   ├── dashboard.sh, web.sh                                  (giao diện)
-   └── settings.sh, start.sh                                 (wrapper)
-```
-
-**Luồng dữ liệu:**
-1. User thay đổi tham số qua dashboard hoặc sửa `calarch.conf`
-2. `core.sh` validate → snapshot → ghi → apply → grace
-3. Scripts `super-mode.sh`, `hyprland-event-monitor.sh`, `mount.sh`, `wallpaper.sh` đọc từ `calarch.conf`
-
-## 🌿 3. Quy trình gửi đóng góp (Git Workflow)
-
-1. **Fork** dự án về tài khoản cá nhân của bạn.
-2. **Tạo Branch mới:**
-   - Tính năng mới: `git checkout -b feat/ten-tinh-nang`
-   - Sửa lỗi: `git checkout -b fix/ten-loi`
-   - Tài liệu: `git checkout -b docs/ten-tai-lieu`
-3. **Commit:** Sử dụng tiếng Việt hoặc tiếng Anh, nhưng phải rõ nghĩa.
-   - *Ví dụ:* `feat: thêm game launcher menu`
-4. **Push & PR:** Đẩy branch lên GitHub và tạo **Pull Request**.
-
----
-
-## 📝 4. Quy chuẩn viết mã (Coding Standards)
-
-- **Nhất quán:** Tuân thủ các quy tắc đặt tên đã có sẵn: `snake_case` cho script, `UPPER_CASE` cho hằng số.
-- **Comment:** Giải thích các logic phức tạp, comment bằng tiếng Việt.
-- **An toàn:** Mọi lệnh sudo/system/package đều có `2>/dev/null; true` — không crash khi fail.
-- **set -euo pipefail** ở đầu mọi script.
-
----
-
-- **Config:** Thêm key mới phải cập nhật `SCHEMA[]` trong `lib/core.sh` và mặc định trong `calarch.conf`
-- **Safety:** Mọi thay đổi hệ thống phải qua `core.sh set` (không bypass)
-
-## 🧪 5. Kiểm thử (Testing)
-
-Trước khi gửi Pull Request, vui lòng đảm bảo:
+### Build
 
 ```bash
-shellcheck calarch.conf start.sh make.sh lib/*.sh web/index.html 2>/dev/null || true
-bash -n calarch.conf start.sh make.sh lib/*.sh
-bash make.sh && bash calarch-*.run check
+VERSION=1.0.5 bash make.sh
+# Output: calarch-v1.0.5.run
 ```
 
-### Lưu ý cho contributor
-- `lib/core.sh` là file quan trọng nhất — mọi thay đổi config đều qua đây
-- `calarch.conf` là config trung tâm — thêm key mới phải:
-  1. Thêm vào `calarch.conf` (có comment)
-  2. Thêm validation rule trong `core.sh` SCHEMA
-  3. Update mặc định trong các profile
-  4. Cập nhật `README.md` và `GUIDE.md`
+### Commit
 
----
-
-## 📧 6. Liên hệ
-
-Nếu có bất kỳ thắc mắc nào:
-
-- [Mở một Issue](https://github.com/tpc-pascal/calarch/issues) trên repo này.
-- Gửi câu hỏi qua phần [Thảo luận (Discussions)](https://github.com/tpc-pascal/calarch/discussions) của dự án.
+- 1 commit duy nhat cho 1 feature
+- Title format: `feat: v<version> - <mo ta>`
+- VD: `feat: v1.0.5 - unified TUI, new docs, post-install standalone`
