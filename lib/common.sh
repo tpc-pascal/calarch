@@ -13,6 +13,7 @@ BLUE='\033[0;34m'; CYAN='\033[0;36m'; GRAY='\033[0;90m'
 
 # --- State file ---
 STATE_FILE="/tmp/arch-install-state.sh"
+umask 077
 PHASE_DONE=-1
 
 # --- Log functions ---

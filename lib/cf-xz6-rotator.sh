@@ -15,12 +15,11 @@ set -uo pipefail
 
 PID_FILE="/tmp/cfxz6-rotator.pid"
 
-if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-    echo "Rotator already running (PID $(cat "$PID_FILE"))"
+if ! (set -o noclobber; echo $$ > "$PID_FILE") 2>/dev/null; then
+    echo "Rotator already running (PID $(cat "$PID_FILE" 2>/dev/null))"
     exit 1
 fi
-echo $$ > "$PID_FILE"
-trap 'rm -f "$PID_FILE"; exit' EXIT TERM INT
+trap 'rm -f "$PID_FILE"' EXIT TERM INT
 
 if ! command -v monitor-sensor &>/dev/null; then
     echo "ERROR: monitor-sensor not found. Install iio-sensor-proxy."

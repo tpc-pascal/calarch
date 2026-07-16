@@ -44,8 +44,8 @@ pomodoro_timer() {
     for ((c=1; c<=cycles; c++)); do
         echo -e "${CY}--- Cycle $c/$cycles: WORK ($work_min phut) ---${R}"
         for ((m=work_min; m>0; m--)); do
-            printf "\r${B}%02d:%02d${R} remaining... " $((m/60)) $((m%60))
-            sleep 60 2>/dev/null || sleep 1
+            printf "\r${B}%02d:00${R} remaining... " "$m"
+            sleep 60
         done
         echo ""
         notify-send -t 5000 "Pomodoro" "Cycle $c/$cycles: Nghi? ($'\u2728')" 2>/dev/null || true
@@ -53,8 +53,8 @@ pomodoro_timer() {
 
         if [ $c -lt $cycles ]; then
             for ((m=break_min; m>0; m--)); do
-                printf "\r${D}Break: %02d:%02d${R}" $((m/60)) $((m%60))
-                sleep 60 2>/dev/null || sleep 1
+                printf "\r${D}Break: %02d:00${R}" "$m"
+                sleep 60
             done
             echo ""
             notify-send -t 5000 "Pomodoro" "Cycle $c/$cycles: Bat dau lam viec!" 2>/dev/null || true

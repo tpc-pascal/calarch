@@ -14,8 +14,6 @@ safety_menu() {
         case "$c" in
             status)
                 echo -e "\n\e[1;36m=== Safety Status ===\e[0m"
-                "$CORE" boot_check 2>/dev/null || true
-                echo ""
                 echo "Grace dir: $(ls /tmp/calarch-grace/ 2>/dev/null | head -5 || echo 'none')"
                 read -r -p "Enter de tiep..."
                 ;;

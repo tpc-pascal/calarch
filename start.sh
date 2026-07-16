@@ -6,8 +6,8 @@ LIB_DIR="$SCRIPT_DIR/lib"
 CORE="$LIB_DIR/core.sh"
 CONFIG_FILE="$SCRIPT_DIR/calarch.conf"
 
-[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE" 2>/dev/null || true
-source "$LIB_DIR/tui.sh" 2>/dev/null || true
+[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE" || true
+[ -f "$LIB_DIR/tui.sh" ] && source "$LIB_DIR/tui.sh" || log_w "tui.sh not found at $LIB_DIR/tui.sh"
 
 R='\e[0m'; B='\e[1m'
 RED='\e[0;31m'; GR='\e[0;32m'; YEL='\e[1;33m'; CY='\e[0;36m'; MG='\e[0;35m'
@@ -28,7 +28,6 @@ first_boot_mode() {
 
 boot_guard() {
     "$CORE" boot_check 2>/dev/null || true
-    "$CORE" i_am_alive 2>/dev/null || true
 }
 
 # --- Unified TUI menu ---

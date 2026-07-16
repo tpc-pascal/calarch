@@ -13,12 +13,11 @@ CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
 
 PID_FILE="/tmp/hyprland-event-monitor.pid"
 
-if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-    echo "Hyprland Event Monitor already running (PID $(cat "$PID_FILE"))"
+if ! (set -o noclobber; echo $$ > "$PID_FILE") 2>/dev/null; then
+    echo "Hyprland Event Monitor already running (PID $(cat "$PID_FILE" 2>/dev/null))"
     exit 1
 fi
-echo $$ > "$PID_FILE"
-trap 'rm -f "$PID_FILE"; exit' EXIT TERM INT
+trap 'rm -f "$PID_FILE"' EXIT TERM INT
 
 ACTIVE_CORES="${AFFINITY_ACTIVE_CORES:-0,1}"
 BG_CORES="${AFFINITY_BG_CORES:-2,3}"

@@ -62,19 +62,19 @@ emacs_on()     { command -v emacs &>/dev/null; }
 # TOGGLE FUNCTIONS
 # ==================================================================
 toggle_super() {
-    if super_on; then pkill -f "super-mode.sh" 2>/dev/null; log_ok "Super Mode OFF"
+    if super_on; then pkill -f "super-mode.sh" 2>/dev/null && log_ok "Super Mode OFF" || log_w "Super Mode OFF failed"
     else nohup bash "$SUPER_SCRIPT" >/dev/null 2>&1 & log_ok "Super Mode ON"; fi
 }
 toggle_affinity() {
-    if affinity_on; then pkill -f "hyprland-event-monitor.sh" 2>/dev/null; log_ok "Affinity OFF"
+    if affinity_on; then pkill -f "hyprland-event-monitor.sh" 2>/dev/null && log_ok "Affinity OFF" || log_w "Affinity OFF failed"
     else nohup bash "$EVENT_MON" >/dev/null 2>&1 & log_ok "Affinity ON"; fi
 }
 toggle_eco() {
     local p="/sys/devices/platform/panasonic/eco_mode" limit
     if [ ! -f "$p" ]; then log_w "Eco mode N/A"; return; fi
     limit=$("$CORE" get ECO_CHARGE_LIMIT 2>/dev/null || echo "80")
-    if eco_on; then echo 0 | sudo tee "$p" >/dev/null; log_ok "Eco OFF (100%)"
-    else echo 1 | sudo tee "$p" >/dev/null; log_ok "Eco ON (${limit}%)"; fi
+    if eco_on; then echo 0 | sudo tee "$p" >/dev/null && log_ok "Eco OFF (100%)" || log_w "Eco OFF failed"
+    else echo 1 | sudo tee "$p" >/dev/null && log_ok "Eco ON (${limit}%)" || log_w "Eco ON failed"; fi
 }
 toggle_uv() {
     if uv_on; then log_w "Undervolt: reset can reboot"
@@ -87,33 +87,35 @@ toggle_uv() {
 }
 toggle_rotate() {
     if rotate_on; then
-        sudo systemctl disable --now iio-sensor-proxy 2>/dev/null; pkill -f "cf-xz6-rotator.sh" 2>/dev/null; log_ok "Rotate OFF"
+        sudo systemctl disable --now iio-sensor-proxy 2>/dev/null && log_ok "Rotate OFF" || log_w "Rotate OFF failed"
+        pkill -f "cf-xz6-rotator.sh" 2>/dev/null || true
     else
-        sudo systemctl enable --now iio-sensor-proxy 2>/dev/null; nohup bash "$ROTATOR" >/dev/null 2>&1 & log_ok "Rotate ON"
+        sudo systemctl enable --now iio-sensor-proxy 2>/dev/null && log_ok "Rotate ON" || log_w "Rotate ON failed"
+        nohup bash "$ROTATOR" >/dev/null 2>&1 &
     fi
 }
 toggle_touch() {
     local id
     id=$(xinput list | grep -i touchpad | grep -oP 'id=\K\d+' || echo "")
     [ -z "$id" ] && { log_w "No touchpad"; return; }
-    if touch_on; then xinput set-prop "$id" "Device Enabled" 0 2>/dev/null; log_ok "Touchpad OFF"
-    else xinput set-prop "$id" "Device Enabled" 1 2>/dev/null; xinput set-prop "$id" "libinput Tapping Enabled" 1 2>/dev/null; log_ok "Touchpad ON"; fi
+    if touch_on; then xinput set-prop "$id" "Device Enabled" 0 2>/dev/null && log_ok "Touchpad OFF" || log_w "Touchpad OFF failed"
+    else xinput set-prop "$id" "Device Enabled" 1 2>/dev/null && xinput set-prop "$id" "libinput Tapping Enabled" 1 2>/dev/null && log_ok "Touchpad ON" || log_w "Touchpad ON failed"; fi
 }
 toggle_maint() {
-    if maint_on; then sudo systemctl disable --now godmode-clean.timer 2>/dev/null; log_ok "Timer OFF"
-    else sudo systemctl enable --now godmode-clean.timer 2>/dev/null; log_ok "Timer ON"; fi
+    if maint_on; then sudo systemctl disable --now godmode-clean.timer 2>/dev/null && log_ok "Timer OFF" || log_w "Timer OFF failed"
+    else sudo systemctl enable --now godmode-clean.timer 2>/dev/null && log_ok "Timer ON" || log_w "Timer ON failed"; fi
 }
 toggle_dock() {
-    if dock_on; then sudo systemctl disable --now docker docker.socket 2>/dev/null; log_ok "Docker OFF"
-    else sudo systemctl enable --now docker docker.socket 2>/dev/null; log_ok "Docker ON"; fi
+    if dock_on; then sudo systemctl disable --now docker docker.socket 2>/dev/null && log_ok "Docker OFF" || log_w "Docker OFF failed"
+    else sudo systemctl enable --now docker docker.socket 2>/dev/null && log_ok "Docker ON" || log_w "Docker ON failed"; fi
 }
 toggle_kvm() {
-    if kvm_on; then sudo systemctl disable --now libvirtd 2>/dev/null; log_ok "KVM OFF"
-    else sudo systemctl enable --now libvirtd 2>/dev/null; log_ok "KVM ON"; fi
+    if kvm_on; then sudo systemctl disable --now libvirtd 2>/dev/null && log_ok "KVM OFF" || log_w "KVM OFF failed"
+    else sudo systemctl enable --now libvirtd 2>/dev/null && log_ok "KVM ON" || log_w "KVM ON failed"; fi
 }
 toggle_ollama() {
-    if ollama_on; then sudo systemctl disable --now ollama 2>/dev/null; log_ok "Ollama OFF"
-    else sudo systemctl enable --now ollama 2>/dev/null; log_ok "Ollama ON"; fi
+    if ollama_on; then sudo systemctl disable --now ollama 2>/dev/null && log_ok "Ollama OFF" || log_w "Ollama OFF failed"
+    else sudo systemctl enable --now ollama 2>/dev/null && log_ok "Ollama ON" || log_w "Ollama ON failed"; fi
 }
 toggle_obs() {
     if obs_on; then log_ok "Obsidian ready"
@@ -123,20 +125,30 @@ toggle_obs() {
     mkdir -p "$HOME/notes/obsidian"
 }
 toggle_block() {
+    local marker="# --- calarch-blocker: begin ---"
+    local marker_end="# --- calarch-blocker: end ---"
     if block_on; then
-        sudo cp "$HOSTS_BACKUP" /etc/hosts 2>/dev/null; rm -f "$HOSTS_BACKUP"; log_ok "Blocker OFF"
+        if sudo cp "$HOSTS_BACKUP" /etc/hosts 2>/dev/null; then
+            rm -f "$HOSTS_BACKUP"
+            log_ok "Blocker OFF"
+        else
+            log_w "Khong the restore /etc/hosts — backup tai $HOSTS_BACKUP"
+        fi
     else
-        sudo cp /etc/hosts "$HOSTS_BACKUP" 2>/dev/null
+        sudo cp /etc/hosts "$HOSTS_BACKUP" 2>/dev/null || true
+        echo "$marker" | sudo tee -a /etc/hosts >/dev/null
         local sites="${BLOCKER_SITES:-facebook.com,twitter.com,x.com,instagram.com,reddit.com,tiktok.com,youtube.com,netflix.com}"
-        IFS=',' read -ra ADDR <<< "$sites"
+        local IFS=','; read -ra ADDR <<< "$sites"
         for entry in "${ADDR[@]}"; do
-            entry=$(echo "$entry" | xargs)
+            entry="${entry#"${entry%%[![:space:]]*}"}"
+            entry="${entry%"${entry##*[![:space:]]}"}"
             [ -n "$entry" ] || continue
             for s in "$entry" "www.$entry"; do
                 echo "127.0.0.1 $s" | sudo tee -a /etc/hosts >/dev/null
                 echo "::1 $s" | sudo tee -a /etc/hosts >/dev/null
             done
         done
+        echo "$marker_end" | sudo tee -a /etc/hosts >/dev/null
         log_ok "Blocker ON"
     fi
 }
@@ -148,7 +160,11 @@ toggle_focus() {
     if focus_on; then
         rm -f "$FOCUS_FLAG"
         if [ -f "$HOSTS_BACKUP" ]; then
-            sudo cp "$HOSTS_BACKUP" /etc/hosts 2>/dev/null; rm -f "$HOSTS_BACKUP"
+            if sudo cp "$HOSTS_BACKUP" /etc/hosts 2>/dev/null; then
+                rm -f "$HOSTS_BACKUP"
+            else
+                log_w "Khong the restore /etc/hosts — backup tai $HOSTS_BACKUP"
+            fi
         fi
         log_ok "Focus OFF"
     else

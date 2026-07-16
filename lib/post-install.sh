@@ -1,10 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LIB_DIR="$SCRIPT_DIR/lib"
 BACKUP_DIR="/tmp/calarch-backups"
-CALARCH_LOG="/tmp/calarch.log"
 
 R='\033[0m'; B='\033[1m'; D='\033[0;90m'
 RED='\033[0;31m'; GR='\033[0;32m'; YEL='\033[1;33m'; CY='\033[0;36m'
@@ -14,10 +13,6 @@ log_info()   { echo -e "${CY}>>>${R} $*"; }
 log_ok()     { echo -e "${GR}[OK]${R} $*"; }
 log_warn()   { echo -e "${YEL}[!!]${R} $*"; }
 log_error()  { echo -e "${RED}[EE]${R} $*"; }
-confirm()    { read -r -p "$1 [y/N]: "; [[ "${REPLY,,}" =~ ^y ]]; }
-
-source "$LIB_DIR/config.sh" 2>/dev/null || true
-source "$LIB_DIR/common.sh" 2>/dev/null || true
 
 CHANGES=()
 backup_file() {
@@ -136,7 +131,9 @@ post_install() {
         if [ "$fstype" = "btrfs" ]; then
             if ! btrfs subvolume list "$mnt" 2>/dev/null | grep -q "@snapshots"; then
                 log_info "Creating @snapshots subvolume..."
-                btrfs subvolume create "$mnt/@snapshots" 2>/dev/null || log_warn "Cannot create @snapshots subvolume"
+                local top_mnt
+                top_mnt=$(findmnt -n -o TARGET --source "$root_dev" 2>/dev/null | head -1 || echo "$mnt")
+                btrfs subvolume create "$top_mnt/@snapshots" 2>/dev/null || log_warn "Cannot create @snapshots subvolume"
                 mkdir -p "$mnt/.snapshots" 2>/dev/null || true
                 local uuid
                 uuid=$(blkid -s UUID -o value "$root_dev" 2>/dev/null || echo "")
@@ -197,11 +194,19 @@ post_install() {
         fi
     fi
 
-    [ -d "$user_home/calarch" ] && arch-chroot "$mnt" chown -R "${username}:${username}" "/home/${username}/calarch" 2>/dev/null || true
+    if [ -d "$user_home/calarch" ] && command -v arch-chroot &>/dev/null; then
+        local chroot_path
+        chroot_path="${user_home#$mnt}"
+        [ -z "$chroot_path" ] && chroot_path="/root"
+        arch-chroot "$mnt" chown -R "${username}:${username}" "$chroot_path/calarch" 2>/dev/null || true
+    fi
 
     if command -v arch-chroot &>/dev/null; then
-        arch-chroot "$mnt" systemctl enable NetworkManager 2>/dev/null || log_warn "Cannot enable NetworkManager"
-        log_ok "NetworkManager enabled for first boot"
+        if arch-chroot "$mnt" systemctl enable NetworkManager &>/dev/null; then
+            log_ok "NetworkManager enabled for first boot"
+        else
+            log_warn "Cannot enable NetworkManager"
+        fi
     fi
 
     mkdir -p "$mnt/var/lib/godmode"
@@ -270,6 +275,8 @@ for i in $(seq 1 20); do
     ping -c 1 -W 1 archlinux.org &>/dev/null && break
     sleep 3
 done
+rm -f "$FLAG"
+touch "$DONE"
 exit 0
 FBS
         chmod +x "$mnt/usr/local/bin/godmode-firstboot.sh"
@@ -298,7 +305,7 @@ fix_partuuid() {
         log_error "Chay lai post-install truoc: bash lib/post-install.sh $mnt"
         exit 1
     }
-    sed -i "s/PLACEHOLDER_PARTUUID/$new_partuuid/g; s|PARTUUID= |PARTUUID=$new_partuuid|g" "$conf"
+    awk -v pu="$new_partuuid" '{gsub(/PLACEHOLDER_PARTUUID/, pu); gsub(/PARTUUID= /, "PARTUUID=" pu)}1' "$conf" > "${conf}.tmp" && mv "${conf}.tmp" "$conf"
     log_ok "Da cap nhat PARTUUID trong $conf"
     cat "$conf"
 }
