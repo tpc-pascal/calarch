@@ -34,6 +34,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.path.startswith('/api/set/'):
             key = self.path.split('/')[-2]
             val = self.path.split('/')[-1]
+            if '..' in key or '..' in val or '/' in key or '/' in val:
+                self.send_json({"ok": False, "error": "invalid key or val"})
+                return
             try:
                 subprocess.check_output(['bash', CORE, 'set', key, val], text=True, timeout=5)
                 self.send_json({"ok": True, "key": key, "val": val})

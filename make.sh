@@ -13,8 +13,8 @@ VERSION="${VERSION:-1.0}"
 NAME="calarch"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 OUTPUT_FILE="$SCRIPT_DIR/${NAME}-v${VERSION}.run"
+trap 'rm -rf "$WORKDIR"' EXIT
 WORKDIR=$(mktemp -d)
-trap "rm -rf '$WORKDIR'" EXIT
 
 echo "=== Making calarch v${VERSION} ==="
 cd "$SCRIPT_DIR"

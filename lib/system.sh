@@ -14,9 +14,9 @@ system_info() {
     if has sensors; then
         cpu_temp=$(sensors 2>/dev/null | grep -i "core 0" | awk '{print $3}' | sed 's/+//' | head -1 || echo "?")
     else
-        cpu_temp=$(cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | head -1 | awk '{printf "%.0f°C", $1/1000}' || echo "?")
+        cpu_temp=$(for z in /sys/class/thermal/thermal_zone*; do t=$(cat "$z/type" 2>/dev/null); case "$t" in x86_pkg_temp|coretemp|acpitz) cat "$z/temp" 2>/dev/null; break;; esac; done | awk '{printf "%.0f°C", $1/1000}' || echo "?")
     fi
-    cpu_freq=$(awk '{print $1/1000}' /proc/cpuinfo 2>/dev/null | grep -v "0" | head -1 | awk '{printf "%.2fGHz", $1}' || echo "?")
+    cpu_freq=$(awk '/cpu MHz/ {printf "%.2fGHz", $4/1000; exit}' /proc/cpuinfo 2>/dev/null || echo "?")
     gov=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo "?")
     eco_state=$(eco_on && echo "ON" || echo "OFF")
     super_state=$(super_on && echo "ACTIVE" || echo "IDLE")

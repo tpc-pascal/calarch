@@ -311,7 +311,7 @@ init_log() {
 
 init_safety() {
     # Mutex toàn cục: flock tránh chạy 2 instance
-    exec 9>"$LOCK_FILE"
+    exec 9<>"$LOCK_FILE"
     if ! flock -n 9; then
         log_fatal "Another instance is running (lock: ${LOCK_FILE})"
     fi
@@ -361,7 +361,11 @@ cleanup() {
     log_info "Running cleanup..."
 
     # Tắt CPU affinity engine nếu còn chạy
-    pkill -f hyprland-event-monitor.sh 2>/dev/null || true
+    if [ -f /tmp/hyprland-event-monitor.pid ]; then
+        kill "$(cat /tmp/hyprland-event-monitor.pid 2>/dev/null)" 2>/dev/null || true
+    else
+        pgrep -f "/hyprland-event-monitor\.sh" && pkill -f "/hyprland-event-monitor\.sh" 2>/dev/null || true
+    fi
 
     # Unset biến môi trường nhạy cảm
     unset HYPRLAND_AUTO_INSTALL HYPRLAND_GPU
@@ -1589,7 +1593,7 @@ restore_default() {
 
 while true; do
     local temp
-    temp=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo 0)
+    temp=$(for z in /sys/class/thermal/thermal_zone*; do t=$(cat "$z/type" 2>/dev/null); case "$t" in x86_pkg_temp|coretemp|acpitz) cat "$z/temp" 2>/dev/null; break;; esac; done || echo 0)
     temp=$((temp / 1000))
 
     local cpu_usage
@@ -2865,7 +2869,7 @@ check_eco_mode() {
     [ -f "$eco_path" ] && { local v; v=$(cat "$eco_path"); case "$v" in 1) echo "ENABLED (80%)";; 0) echo "DISABLED (100%)";; *) echo "UNKNOWN";; esac; } || echo "N/A"
 }
 check_cpu_temp() {
-    local t="/sys/class/thermal/thermal_zone0/temp"; [ -f "$t" ] && { local r; r=$(cat "$t"); echo "$((r/1000)).$((r%1000/100))°C"; } || echo "N/A"
+    local t=$(for z in /sys/class/thermal/thermal_zone*; do local zt=$(cat "$z/type" 2>/dev/null); case "$zt" in x86_pkg_temp|coretemp|acpitz) echo "$z/temp"; break;; esac; done); [ -n "$t" ] && [ -f "$t" ] && { local r; r=$(cat "$t"); echo "$((r/1000)).$((r%1000/100))°C"; } || echo "N/A"
 }
 while true; do
     clear

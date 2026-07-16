@@ -185,7 +185,12 @@ EVENT="" EVENT_TYPE=""
 # ============================================================================
 cpu_temp() {
   local t=0
-  [ -f /sys/class/thermal/thermal_zone0/temp ] && t=$(cat /sys/class/thermal/thermal_zone0/temp) && t=$((t/1000))
+  local z
+  for z in /sys/class/thermal/thermal_zone*; do
+    local ztype
+    ztype=$(cat "$z/type" 2>/dev/null)
+    case "$ztype" in x86_pkg_temp|coretemp|acpitz) t=$(cat "$z/temp" 2>/dev/null); t=$((t/1000)); break;; esac
+  done
   echo "$t"
 }
 cpu_freq() {

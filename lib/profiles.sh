@@ -8,7 +8,9 @@ PROFILE_DIR="$SCRIPT_DIR/../profiles"
 has() { command -v "$1" &>/dev/null; }
 
 profiles_list() {
+    shopt -s nullglob
     local files=("$PROFILE_DIR"/*.conf)
+    shopt -u nullglob
     [ ${#files[@]} -eq 0 ] && { echo "(none)"; return; }
     for f in "${files[@]}"; do
         basename "$f" .conf
@@ -35,8 +37,12 @@ profiles_menu() {
                 read -r -p "Enter de tiep..."
                 ;;
             load)
-                local prof
-                prof=$(tui_menu "LOAD PROFILE" "Chon profile:" 14 50 4 $(for f in "$PROFILE_DIR"/*.conf; do echo "$(basename "$f" .conf)"; echo ""; done)) || continue
+                local prof items=()
+                shopt -s nullglob
+                for f in "$PROFILE_DIR"/*.conf; do items+=("$(basename "$f" .conf)" ""); done
+                shopt -u nullglob
+                [ ${#items[@]} -eq 0 ] && { tui_msg "PROFILES" "Khong co profile nao" 6 30; continue; }
+                prof=$(tui_menu "LOAD PROFILE" "Chon profile:" 14 50 4 "${items[@]}") || continue
                 [ -n "$prof" ] && "$CORE" profile load "$prof" 2>/dev/null && echo "OK" || echo "Fail"
                 read -r -p "Enter de tiep..."
                 ;;

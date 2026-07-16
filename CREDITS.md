@@ -1,47 +1,36 @@
-# 🙏 Ghi công & Nguồn tham khảo (Credits)
-
-Dưới đây là danh sách các tài liệu, công cụ đã được sử dụng.
-
----
-
-## 📚 Tài liệu (Documents)
-
-<details open>
-<summary><b>Danh sách chi tiết</b></summary>
-
-| STT | Tác giả | Nội dung tham khảo | Liên kết |
-|:---:|:---|:---|:---|
-| 1 | **JaKooLit** | Hyprland dotfiles & installer scripts | [GitHub](https://github.com/JaKooLit) |
-| 2 | **Arch Linux Wiki** | Hướng dẫn cấu hình hệ thống | [wiki.archlinux.org](https://wiki.archlinux.org) |
-| 3 | **Hyprland Wiki** | Tài liệu Wayland compositor | [wiki.hyprland.org](https://wiki.hyprland.org) |
-</details>
+# Ghi công & Nguồn tham khảo (Credits)
 
 ## Công cụ (Tools)
 
-<details open>
-<summary><b>Danh sách chi tiết</b></summary>
+| Công cụ | Công dụng |
+|---------|-----------|
+| [dialog](https://invisible-island.net/dialog/) | TUI widget library |
+| [taskset](https://man.archlinux.org/man/taskset.1) | CPU affinity |
+| [chrt](https://man.archlinux.org/man/chrt.1) | Scheduling policy |
+| [intel-undervolt](https://github.com/kitsunyan/intel-undervolt) | Undervolt Intel CPU |
+| [thermald](https://github.com/intel/thermald) | Thermal daemon |
+| [TLP](https://linrunner.de/tlp/) | Power management |
+| [JaKooLit](https://github.com/JaKooLit) | Hyprland dotfiles & installer scripts |
+| [chafa](https://hpjansson.org/chafa/) | Terminal image preview |
+| [Ollama](https://ollama.ai/) | Local LLM |
+| [OpenCode](https://opencode.ai/) | AI coding assistant |
 
-| STT | Tác giả | Nội dung tham khảo | Liên kết |
-|:---:|:---|:---|:---|
-| 1 | **Ollama** | Local LLM inference engine | [ollama.ai](https://ollama.ai) |
-| 2 | **OpenCode** | Terminal AI coding agent | [opencode.ai](https://opencode.ai) |
-| 3 | **Chezmoi** | Dotfile manager | [chezmoi.io](https://chezmoi.io) |
-| 4 | **Rclone** | Cloud sync tool | [rclone.org](https://rclone.org) |
-</details>
+## Tài liệu tham khảo
 
----
+| Tài liệu | Nội dung | Liên kết |
+|----------|----------|----------|
+| **Arch Linux Wiki** | Hướng dẫn cấu hình hệ thống | [wiki.archlinux.org](https://wiki.archlinux.org) |
+| **Hyprland Wiki** | Tài liệu Wayland compositor | [wiki.hyprland.org](https://wiki.hyprland.org) |
+| **rEFInd** | Boot manager documentation | [rodsbooks.com/refind](https://www.rodsbooks.com/refind/) |
+| **Btrfs Wiki** | Btrfs filesystem documentation | [btrfs.wiki.kernel.org](https://btrfs.wiki.kernel.org) |
 
-## 🛠 Cộng đồng nhà phát triển (Communities)
+## Cộng đồng
 
-Chúng tôi xin gửi lời cảm ơn đến các cộng đồng và nền tảng phát triển các công cụ sau:
+- [Arch Linux Forums](https://bbs.archlinux.org/)
+- [Arch Linux Reddit](https://www.reddit.com/r/archlinux/)
+- [Hyprland Discord](https://discord.gg/hyprland)
 
-- **Cộng đồng:** Arch Linux, Hyprland, JaKooLit
-- **Công cụ:** yay, dialog/whiptail (qua `lib/tui.sh`), systemd, nftables, snapper
-- **Phần cứng:** Panasonic CF-XZ6 — laptop 3:2 hiếm hoi dành cho lập trình viên
-
----
-
-## 🤝 Đóng góp từ cộng đồng
+## Đóng góp từ cộng đồng
 
 Rất hoan nghênh và trân trọng sự đóng góp của các cá nhân đã giúp dự án hoàn thiện hơn thông qua việc báo lỗi (Issues) hoặc gửi mã nguồn (Pull Requests).
 

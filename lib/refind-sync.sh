@@ -231,20 +231,8 @@ detect_ucode() {
         ucode="$boot_dir/intel-ucode.img"
     elif [ -f "$boot_dir/amd-ucode.img" ]; then
         ucode="$boot_dir/amd-ucode.img"
-    elif [ -f "$boot_dir/intel-ucode.img" ]; then
-        ucode="$boot_dir/intel-ucode.img"
     fi
     echo "$ucode"
-}
-
-detect_cpu_vendor() {
-    if grep -qi "GenuineIntel" /proc/cpuinfo 2>/dev/null; then
-        echo "intel"
-    elif grep -qi "AuthenticAMD" /proc/cpuinfo 2>/dev/null; then
-        echo "amd"
-    else
-        echo "intel"
-    fi
 }
 
 # === GET ROOT PARTUUID ===
@@ -278,7 +266,11 @@ get_kernel_params() {
     local config_file="$mnt/calarch.conf"
     [ "$mnt" = "/" ] && config_file="/calarch.conf"
     [ ! -f "$config_file" ] && config_file="$HOME/calarch/calarch.conf"
-    [ ! -f "$config_file" ] && config_file="$mnt/home/*/calarch/calarch.conf"
+    if [ ! -f "$config_file" ]; then
+        local home_dirs
+        home_dirs=$(ls -d "$mnt/home"/*/calarch/calarch.conf 2>/dev/null | head -1)
+        [ -n "$home_dirs" ] && config_file="$home_dirs"
+    fi
 
     if [ -f "$config_file" ]; then
         local params
@@ -443,12 +435,11 @@ manage_refind_entry() {
     local new_content=""
 
     if echo "$conf_content" | grep -qF "$marker_begin"; then
-        new_content=$(echo "$conf_content" | sed -n "1,/$marker_begin/p" | head -n -1)
-        new_content="$new_content"
+        new_content=$(echo "$conf_content" | awk -v m="$marker_begin" 'BEGIN{f=0} index($0,m){f=1;next} !f{print}')
         [ -n "$new_content" ] && new_content="$new_content\n"
         new_content="$new_content$entry_text"
         local after_marker
-        after_marker=$(echo "$conf_content" | sed -n "/$marker_end/,\$p" | tail -n +2)
+        after_marker=$(echo "$conf_content" | awk -v m="$marker_end" 'BEGIN{f=0} index($0,m){f=1;next} f{print}')
         [ -n "$after_marker" ] && new_content="$new_content$after_marker"
     else
         new_content="$conf_content"
@@ -456,7 +447,6 @@ manage_refind_entry() {
         new_content="$new_content$entry_text"
     fi
 
-    new_content="${new_content%\\n}"
     printf '%b' "$new_content" > "$refind_conf"
     log_ok "rEFInd entry updated at $refind_conf"
 }
@@ -480,7 +470,9 @@ install_pacman_hook() {
 LOGFILE="/var/log/calarch-kernel-sync.log"
 {
     echo "[$(date)] calarch-sync-kernel start"
-    REFIND_SYNC="/usr/local/bin/refind-sync.sh"
+    self="$(readlink -f "$0")"
+    self_dir="$(dirname "$self")"
+    REFIND_SYNC="$self_dir/refind-sync.sh"
     if [ -f "$REFIND_SYNC" ]; then
         bash "$REFIND_SYNC" 2>&1
     elif [ -f "$HOME/calarch/lib/refind-sync.sh" ]; then

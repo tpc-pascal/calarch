@@ -10,15 +10,16 @@
 # ============================================================================
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
 PROFILE_DIR="$SCRIPT_DIR/../profiles"
 HISTORY_DIR="/var/lib/calarch/history"
 HISTORY_LOG="$HISTORY_DIR/history.log"
 BOOT_COUNT_FILE="/var/lib/calarch/boot-count"
 GRACE_DIR="/tmp/calarch-grace"
+GRACE_PENDING_DIR="/var/lib/calarch/grace-pending"
 
-mkdir -p "$HISTORY_DIR" "$GRACE_DIR" "$PROFILE_DIR" 2>/dev/null || true
+mkdir -p "$HISTORY_DIR" "$GRACE_DIR" "$GRACE_PENDING_DIR" "$PROFILE_DIR" 2>/dev/null || true
 
 # ============================================================================
 # SCHEMA: validation rules cho tung key
@@ -106,7 +107,7 @@ config_set() {
 
   if [ -f "$CONFIG_FILE" ]; then
     if grep -qE "^${key}=" "$CONFIG_FILE"; then
-      sed -i "s|^${key}=.*|${key}=${val}|" "$CONFIG_FILE"
+      awk -v k="${key}=" -v v="${val}" 'index($0,k)==1{$0=k v}1' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
     else
       echo "${key}=${val}" >> "$CONFIG_FILE"
     fi
@@ -117,7 +118,7 @@ config_set() {
   apply "$key" "$val"
   log "$key" "$old" "$val"
 
-  if is_critical "$key"; then
+  if [ -z "${PROFILE_LOADING:-}" ] && is_critical "$key"; then
     grace_start "$key" "$old"
   fi
 }
@@ -252,9 +253,12 @@ apply() {
     UNDERVOLT_*)
       if has intel-undervolt; then
         local cpu gpu cache
-        cpu=$(get UNDERVOLT_CPU)
-        gpu=$(get UNDERVOLT_GPU)
-        cache=$(get UNDERVOLT_CACHE)
+        cpu=$(get UNDERVOLT_CPU) || cpu=""
+        gpu=$(get UNDERVOLT_GPU) || gpu=""
+        cache=$(get UNDERVOLT_CACHE) || cache=""
+        for var in cpu gpu cache; do
+          [ -z "${!var}" ] && { log_w "${var^^} is empty, skipping undervolt apply"; return 1; }
+        done
         sudo intel-undervolt apply --cpu "$cpu" --gpu "$gpu" --cache "$cache" 2>/dev/null && \
           log_ok "Undervolt ap dung: CPU ${cpu}mV / GPU ${gpu}mV / Cache ${cache}mV" || \
           log_w "Undervolt apply that bai"
@@ -306,9 +310,13 @@ snapshot() {
 grace_start() {
   local key="$1" old="$2"
   local pid_file="$GRACE_DIR/${key}.pid"
+  local pending_file="$GRACE_PENDING_DIR/${key}"
 
   # Kill grace cu neu co
   [ -f "$pid_file" ] && kill "$(cat "$pid_file")" 2>/dev/null || true
+
+  # Persist pending de tranh mat state khi reboot
+  echo "$old" > "$pending_file"
 
   (
     sleep 300
@@ -319,7 +327,7 @@ grace_start() {
       log_w "Grace period het han: revert ${key}=${old}"
       sudo bash "$SCRIPT_DIR/core.sh" set "$key" "$old" 2>/dev/null || true
     fi
-    rm -f "$pid_file"
+    rm -f "$pid_file" "$pending_file"
   ) &
   local pid=$!
   echo "$pid" > "$pid_file"
@@ -330,6 +338,28 @@ grace_start() {
   log_w "  -> chay: bash lib/core.sh grace_confirm ${key}"
 }
 
+# Kiem tra va revert cac grace bi mat state do reboot
+grace_recover_stale() {
+  for f in "$GRACE_PENDING_DIR"/*; do
+    [ -f "$f" ] || continue
+    local key
+    key=$(basename "$f")
+    local pid_file="$GRACE_DIR/${key}.pid"
+    # PID khong con (reboot) → revert
+    [ -f "$pid_file" ] && continue
+    local old
+    old=$(cat "$f" 2>/dev/null || true)
+    [ -z "$old" ] && { rm -f "$f"; continue; }
+    local current
+    current=$(get "$key") || true
+    if [ "$current" != "$old" ]; then
+      log_w "Grace recover (reboot): revert ${key}=${old}"
+      sudo bash "$SCRIPT_DIR/core.sh" set "$key" "$old" 2>/dev/null || true
+    fi
+    rm -f "$f"
+  done
+}
+
 grace_confirm() {
   local key="$1"
   if [ "$key" = "all" ]; then
@@ -338,7 +368,7 @@ grace_confirm() {
       local k
       k=$(basename "$f" .pid)
       kill "$(cat "$f")" 2>/dev/null || true
-      rm -f "$f"
+      rm -f "$f" "$GRACE_PENDING_DIR/$k"
       log_ok "Grace xac nhan: ${k}"
     done
     return
@@ -346,7 +376,7 @@ grace_confirm() {
   local pid_file="$GRACE_DIR/${key}.pid"
   if [ -f "$pid_file" ]; then
     kill "$(cat "$pid_file")" 2>/dev/null || true
-    rm -f "$pid_file"
+    rm -f "$pid_file" "$GRACE_PENDING_DIR/$key"
     log_ok "Grace xac nhan: ${key} da duoc giu nguyen"
   else
     log_w "Khong co grace pending cho ${key}"
@@ -379,6 +409,8 @@ grace_status() {
 # ============================================================================
 
 boot_guard_check() {
+  grace_recover_stale
+
   local count=0
   [ -f "$BOOT_COUNT_FILE" ] && count=$(cat "$BOOT_COUNT_FILE" 2>/dev/null || echo 0)
   count=$((count + 1))
@@ -408,8 +440,7 @@ log() {
   local key="$1" old="$2" new="$3"
   local ts
   ts=$(date '+%Y-%m-%d %H:%M:%S')
-  echo "${ts} | ${key} | ${old} | ${new}" >> "$HISTORY_LOG"
-  # Giữ tối đa 500 dòng
+  printf '%s\x1f%s\x1f%s\x1f%s\n' "$ts" "$key" "$old" "$new" >> "$HISTORY_LOG"
   tail -n 500 "$HISTORY_LOG" > "${HISTORY_LOG}.tmp" && mv "${HISTORY_LOG}.tmp" "$HISTORY_LOG" 2>/dev/null || true
 }
 
@@ -423,8 +454,8 @@ undo() {
   [ -z "$last_line" ] && { log_w "Lich su trong"; return; }
 
   local key old
-  key=$(echo "$last_line" | cut -d'|' -f2 | xargs)
-  old=$(echo "$last_line" | cut -d'|' -f3 | xargs)
+  key=$(echo "$last_line" | cut -d$'\x1f' -f2 | xargs)
+  old=$(echo "$last_line" | cut -d$'\x1f' -f3 | xargs)
 
   if [ -n "$key" ] && [ -n "$old" ]; then
     log_i "Undo: ${key} = ${old}"
@@ -437,7 +468,7 @@ undo() {
 show_log() {
   local n="${1:-10}"
   [ ! -f "$HISTORY_LOG" ] && { echo "(empty)"; return; }
-  tail -n "$n" "$HISTORY_LOG" | while IFS='|' read -r ts key old new; do
+  tail -n "$n" "$HISTORY_LOG" | while IFS=$'\x1f' read -r ts key old new; do
     echo -e "${D}${ts}${R} | ${CY}${key}${R} | ${RED}${old}${R} -> ${GR}${new}${R}"
   done
 }
@@ -461,10 +492,12 @@ profile_load() {
   [ ! -f "$file" ] && { log_e "Profile khong ton tai: ${name}"; return 1; }
 
   log_i "Loading profile: ${name}"
+  PROFILE_LOADING=1
   while IFS='=' read -r key val; do
     [ -z "$key" ] && continue
     config_set "$key" "$val" 2>/dev/null || true
   done < <(grep -vE '^\s*(#|$)' "$file")
+  unset PROFILE_LOADING
   log_ok "Profile loaded: ${name}"
 }
 
@@ -493,7 +526,7 @@ profile_delete() {
 
 api_status() {
   local temp freq load eco super grace
-  temp=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf "%.0f", $1/1000}' || echo "?")
+  temp=$(for z in /sys/class/thermal/thermal_zone*; do t=$(cat "$z/type" 2>/dev/null); case "$t" in x86_pkg_temp|coretemp|acpitz) cat "$z/temp" 2>/dev/null; break;; esac; done | awk '{printf "%.0f", $1/1000}' || echo "?")
   freq=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null | awk '{printf "%.2f", $1/1000000}' || echo "?")
   load=$(awk '/cpu /{printf "%d",($2+$4)*100/($2+$4+$5)}' /proc/stat 2>/dev/null || echo "?")
   eco=$(cat /sys/devices/platform/panasonic/eco_mode 2>/dev/null || echo "?")

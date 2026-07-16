@@ -67,12 +67,11 @@ is_compiling() {
 }
 
 main() {
-    # PID file + single instance
-    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-        echo "Super Mode Daemon already running (PID $(cat "$PID_FILE"))"
+    # PID file + single instance (atomic via noclobber)
+    if ! (set -o noclobber; echo $$ > "$PID_FILE") 2>/dev/null; then
+        echo "Super Mode Daemon already running (PID $(cat "$PID_FILE" 2>/dev/null))"
         exit 1
     fi
-    echo $$ > "$PID_FILE"
     trap cleanup EXIT TERM INT
 
     log "Daemon started (PID $$)"
