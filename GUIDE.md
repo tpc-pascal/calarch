@@ -24,13 +24,30 @@ ping archlinux.org
 
 # 2. Chạy archinstall
 archinstall
+```
 
-# Cấu hình trong archinstall:
-#   - Disk: tự partition (Btrfs khuyên dùng)
-#   - Bootloader: rEFInd / systemd-boot / GRUB
-#   - User: tạo user + password
-#
-# SAU KHI archinstall XONG → chọn "Exit" (KHÔNG reboot)
+**Cấu hình từng mục trong archinstall:**
+
+| Mục | Giá trị | Ghi chú |
+|-----|---------|---------|
+| **Archinstall language** | English | Giữ mặc định |
+| **Disk configuration** | `Manual partitioning` | Chọn ổ đĩa (vd `/dev/nvme0n1`) |
+| → **ESP partition** | `fat32`, mount: `/boot`, size: 512MB+ | **Bắt buộc mount `/boot`** nếu không archinstall không cho tiếp tục |
+| → **Root partition** | `btrfs`, phần còn lại của disk | Để archinstall tự tạo subvolumes |
+| **Bootloader** | `rEFInd` | Hoặc `systemd-boot` / `GRUB` |
+| **Swap** | `True` (hoặc tuỳ bạn) | |
+| **Hostname** | Nhập tên máy (vd `cfxz6`) | |
+| **Root password** | Nhập mật khẩu root | |
+| **User account** | Tạo user + password | Nhập username và password |
+| **Profile** | `Hyprland` (nếu muốn desktop) | Bỏ qua nếu không cần |
+| **Audio** | `pipewire` | |
+| **Kernel** | `linux-zen` (khuyên dùng) | Hoặc `linux` mặc định |
+| **Network configuration** | `NetworkManager` | |
+| **Timezone** | Chọn múi giờ (vd `Asia/Ho_Chi_Minh`) | |
+| **Locale** | `en_US.UTF-8` (hoặc `vi_VN`) | |
+| **Optional repositories** | `multilib` (nếu cần Steam/Wine) | |
+
+> **SAU KHI archinstall CHẠY XONG → chọn "Exit" (KHÔNG reboot)**
 
 # 3. Kiểm tra mount point
 ls /mnt/etc
