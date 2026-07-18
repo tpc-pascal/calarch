@@ -9,12 +9,12 @@ CONFIG_FILE="$SCRIPT_DIR/calarch.conf"
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE" || true
 
 if ! command -v dialog &>/dev/null; then
-    echo -e "${CY}>>>${R} dialog not found. Installing..."
+    echo -e ">>> dialog not found. Installing..."
     if command -v pacman &>/dev/null; then
         sudo pacman -S dialog --noconfirm 2>/dev/null || true
     fi
     if ! command -v dialog &>/dev/null; then
-        echo -e "${RED}[EE]${R} Cannot install dialog. Run: sudo pacman -S dialog"
+        echo -e "[EE] Cannot install dialog. Run: sudo pacman -S dialog"
         exit 1
     fi
 fi
@@ -33,7 +33,7 @@ has() { command -v "$1" &>/dev/null; }
 
 first_boot_mode() {
     if [ -f "$LIB_DIR/install.sh" ]; then
-        bash "$LIB_DIR/install.sh"
+        bash "$LIB_DIR/install.sh" || true
     fi
     exit 0
 }
