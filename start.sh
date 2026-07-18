@@ -7,6 +7,18 @@ CORE="$LIB_DIR/core.sh"
 CONFIG_FILE="$SCRIPT_DIR/calarch.conf"
 
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE" || true
+
+if ! command -v dialog &>/dev/null; then
+    echo -e "${CY}>>>${R} dialog not found. Installing..."
+    if command -v pacman &>/dev/null; then
+        sudo pacman -S dialog --noconfirm 2>/dev/null || true
+    fi
+    if ! command -v dialog &>/dev/null; then
+        echo -e "${RED}[EE]${R} Cannot install dialog. Run: sudo pacman -S dialog"
+        exit 1
+    fi
+fi
+
 [ -f "$LIB_DIR/tui.sh" ] && source "$LIB_DIR/tui.sh" || log_w "tui.sh not found at $LIB_DIR/tui.sh"
 
 R='\e[0m'; B='\e[1m'
