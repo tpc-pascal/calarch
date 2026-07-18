@@ -281,21 +281,28 @@ WELCOME
 #!/bin/bash
 FLAG="/var/lib/godmode/firstboot-pending"
 DONE="/var/lib/godmode/firstboot-done"
+RUNNING="/tmp/godmode-setup-running"
+LOG="/tmp/godmode-setup.log"
+
 [ ! -f "$FLAG" ] && exit 0
 [ -f "$DONE" ] && exit 0
-# Đợi network
-for i in $(seq 1 30); do
-    ping -c 1 -W 1 archlinux.org &>/dev/null && break
-    sleep 2
-done
-# Chay God-Mode setup
-cd ~/calarch 2>/dev/null && bash start.sh -m first-boot
-rm -f "$FLAG"
-touch "$DONE"
-echo ""
-echo -e "\033[1;32mGod-Mode setup complete! System ready.\033[0m"
-echo "  Use: cd ~/calarch && ./start.sh  (for settings panel)"
-echo ""
+[ -f "$RUNNING" ] && exit 0
+
+touch "$RUNNING"
+(
+    for i in $(seq 1 10); do
+        ping -c 1 -W 1 archlinux.org &>/dev/null && break
+        sleep 1
+    done
+    if cd ~/calarch 2>/dev/null && bash start.sh -m first-boot; then
+        rm -f "$FLAG"
+        touch "$DONE"
+        echo -e "\033[1;32mGod-Mode setup complete! System ready.\033[0m"
+    else
+        echo -e "\033[1;31mGod-Mode setup failed. Retrying on next login.\033[0m"
+    fi
+    rm -f "$RUNNING"
+) &>/tmp/godmode-setup.log &
 BASHEOF
     chown "${username}:${username}" "$bashlogin" 2>/dev/null || true
 

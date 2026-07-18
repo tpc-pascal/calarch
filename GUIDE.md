@@ -124,8 +124,10 @@ reboot
 ## Sau khi reboot lần đầu
 
 1. **Login** bằng user đã tạo
-2. **God-Mode setup** tự động chạy nếu là lần đăng nhập đầu tiên
-3. Sau khi setup xong, chạy: `cd ~/calarch && bash start.sh`
+2. **God-Mode setup** tự động chạy **ngầm** (không block login) nếu là lần đăng nhập đầu tiên
+3. Kiểm tra trạng thái: `cat /tmp/godmode-setup.log`
+4. Nếu setup lỗi, lần login sau sẽ tự động thử lại
+5. Sau khi setup xong, chạy: `cd ~/calarch && bash start.sh`
 
 ---
 
