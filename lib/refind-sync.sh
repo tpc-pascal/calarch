@@ -28,7 +28,7 @@
 # ============================================================================
 set -euo pipefail
 
-R='\033[0m'; B='\033[1m'; D='\033[0;90m'
+R='\033[0m'; D='\033[0;90m'
 RED='\033[0;31m'; GR='\033[0;32m'; YEL='\033[1;33m'; CY='\033[0;36m'
 
 log_i()  { echo -e "${CY}>>>${R} $*"; }
@@ -36,7 +36,7 @@ log_ok() { echo -e "${GR}[OK]${R} $*"; }
 log_w()  { echo -e "${YEL}[!!]${R} $*"; }
 log_e()  { echo -e "${RED}[EE]${R} $*"; }
 
-# Default kernel params (match config.sh)
+# Default kernel params
 DEFAULT_KERNEL_PARAMS="nowatchdog processor.max_cstate=4 intel_idle.max_cstate=4 i915.enable_fbc=1 i915.enable_psr=1 i915.enable_rc6=1 i915.fastboot=1 mitigations=off pcie_aspm=force"
 
 # === CONFIG ===
@@ -465,6 +465,14 @@ install_pacman_hook() {
 
     mkdir -p "$hook_dir"
 
+    # Copy refind-sync.sh next to the hook script for reliable path resolution
+    local refind_sync_target="${target_root}/usr/local/bin/refind-sync.sh"
+    local self_refind_sync
+    self_refind_sync="$(cd "$(dirname "$0")" && pwd)/refind-sync.sh"
+    if [ -f "$self_refind_sync" ]; then
+        cp "$self_refind_sync" "$refind_sync_target" 2>/dev/null || true
+    fi
+
     cat > "$script_file" << 'SCRIPT_EOF'
 #!/bin/bash
 # calarch-sync-kernel.sh — Sync kernel to ESP for rEFInd
@@ -473,11 +481,8 @@ install_pacman_hook() {
 LOGFILE="/var/log/calarch-kernel-sync.log"
 {
     echo "[$(date)] calarch-sync-kernel start"
-    self="$(readlink -f "$0")"
-    self_dir="$(dirname "$self")"
-    REFIND_SYNC="$self_dir/refind-sync.sh"
-    if [ -f "$REFIND_SYNC" ]; then
-        bash "$REFIND_SYNC" 2>&1
+    if [ -f /usr/local/bin/refind-sync.sh ]; then
+        bash /usr/local/bin/refind-sync.sh 2>&1
     elif [ -f "$HOME/calarch/lib/refind-sync.sh" ]; then
         bash "$HOME/calarch/lib/refind-sync.sh" 2>&1
     else
@@ -613,11 +618,25 @@ main() {
 
     local boot_dir="$MNT/boot"
     if [ ! -d "$boot_dir" ]; then
+        if [ "$MNT" != "/mnt" ] || [ ! -d "/boot/EFI" ]; then
+            log_w "Boot directory not found at $MNT/boot"
+            return 1
+        fi
         boot_dir="/boot"
     fi
     if [ ! -d "$boot_dir" ]; then
-        log_w "Boot directory not found at $MNT/boot or /boot"
+        log_w "Boot directory not found at $MNT/boot"
         return 1
+    fi
+
+    # UKI mode: rEFInd tu dong tim UKI trong ESP, khong can sync kernel hay refind_linux.conf
+    if [ -d "$boot_dir/EFI/Linux" ] && [ -n "$(find "$boot_dir/EFI/Linux" -maxdepth 1 -name '*.efi' -print -quit 2>/dev/null)" ]; then
+        log_i "UKI detected at $boot_dir/EFI/Linux/ — rEFInd auto-detects UKI files"
+        log_i "Skipping kernel sync and rEFInd entry generation"
+        log_i "Installing pacman hook..."
+        install_pacman_hook "$MNT"
+        log_ok "rEFInd sync complete (UKI mode)"
+        return 0
     fi
 
     local kernels
@@ -658,6 +677,7 @@ main() {
     local boot_dev boot_fstype
     boot_dev=$(findmnt -n -o SOURCE "$boot_dir" 2>/dev/null || true)
     boot_fstype=$(findmnt -n -o FSTYPE "$boot_dir" 2>/dev/null || true)
+    boot_fstype=$(echo "$boot_fstype" | tr '[:upper:]' '[:lower:]')
     if [ "$boot_fstype" = "vfat" ] || [ "$boot_fstype" = "fat" ]; then
         log_i "/boot la FAT32 (ESP) — kernel da san tren ESP, bo qua copy"
     else
@@ -666,7 +686,7 @@ main() {
     fi
 
     local boot_is_esp=0
-    if [ "$boot_fstype" = "vfat" ] || [ "$boot_fstype" = "fat" ]; then
+    if [ "$boot_fstype" = "vfat" ] || [ "$boot_fstype" = "fat32" ]; then
         boot_is_esp=1
     fi
 

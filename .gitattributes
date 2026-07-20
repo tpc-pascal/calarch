@@ -1,0 +1,27 @@
+﻿# Auto detect text files and perform LF normalization
+* text=auto
+
+# Shell scripts: always LF
+*.sh text eol=lf
+
+# Config files: always LF
+*.conf text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.cfg text eol=lf
+*.ini text eol=lf
+
+# Git files: always LF
+.gitattributes text eol=lf
+.gitignore text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.run binary
