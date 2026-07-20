@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.10"
+VERSION="1.0.11"
 
 # --- Colors ---
 R='\033[0m'; B='\033[1m'
@@ -207,6 +207,35 @@ prompt_font() {
 }
 
 # ============================================================================
+# PRE-ARCHINSTALL WIZARD
+# ============================================================================
+
+prompt_install_mode() {
+    [ "$AUTO" -eq 1 ] && return
+    section "CHỌN ĐĨA CÀI ĐẶT"
+
+    [ -z "$DISK" ] && DISK=$(detect_disk)
+    [ -z "$DISK" ] && err "No disk found"
+
+    local info
+    info=$(lsblk -dno NAME,SIZE,MODEL "$DISK" 2>/dev/null | awk '{print $1" ("$2") - "$3}')
+    echo -e "Phát hiện: ${B}${DISK}${R} — ${info}"
+    echo -n "Dùng đĩa này? (ALL DATA SẼ BỊ XOÁ) [Y/n]: "
+    local ans
+    read -r ans
+    if [[ "$ans" =~ ^[nN] ]]; then
+        echo ""
+        echo "Các đĩa khả dụng:"
+        lsblk -dno NAME,SIZE,MODEL,TYPE | awk '$4=="disk" {printf "  /dev/%s  (%s, %s)\n", $1, $2, $3}'
+        echo -n "Nhập đường dẫn (vd: /dev/nvme0n1): "
+        read -r DISK
+    fi
+    validate_nonempty "DISK" "${DISK:-}"
+    validate_disk "$DISK"
+    ok "Disk: $DISK"
+}
+
+# ============================================================================
 # ARCHINSTALL TUI
 # ============================================================================
 
@@ -219,17 +248,16 @@ try_archinstall() {
     fi
 
     echo ""
-    echo "╔══════════════════════════════════════════════════════════════╗"
-    echo "║  archinstall TUI se mo ra. Cau hinh:                       ║"
-    echo "║  - Partition: chon dia/partition ban muon                   ║"
-    echo "║  - Filesystem: Btrfs (khuyen dung cho snapshot)             ║"
-    echo "║  - Bootloader: tuy y (systemd-boot / rEFInd / GRUB)        ║"
-    echo "║  - Locale, timezone, hostname, users, passwords            ║"
-    echo "║  - Console font: co the chon font to trong archinstall     ║"
-    echo "║                                                           ║"
-    echo "║  QUAN TRONG: Sau khi archinstall xong, chon Exit           ║"
-    echo "║  (KHONG chon Reboot). calarch se tu chay post-install.    ║"
-    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  archinstall TUI — cau hinh he thong co ban         ║"
+    echo "║                                                    ║"
+    echo "║  • Partition + Filesystem                           ║"
+    echo "║  • Bootloader                                      ║"
+    echo "║  • Locale + Timezone                               ║"
+    echo "║                                                    ║"
+    echo "║  QUAN TRONG: Chon Exit (KHONG Reboot)               ║"
+    echo "║  de calarch tu dong chay post-install.             ║"
+    echo "╚══════════════════════════════════════════════════════╝"
     echo ""
     echo -n "Nhan Enter de mo archinstall... "
     read -r
@@ -255,6 +283,7 @@ try_archinstall() {
     done
 
     warn "archinstall xong nhung khong tim thay he thong tai /mnt"
+    warn "Ban da chon Exit (khong phai Reboot) trong archinstall?"
     echo -n "Thu cong nhan mount point khac? [/mnt]: "
     local alt
     read -r alt
@@ -610,8 +639,8 @@ if [ "$AUTO" -eq 1 ]; then
     phase1
     phase2
 else
+    prompt_install_mode
     if ! try_archinstall; then
-        prompt_disk
         prompt_identity
         phase1
         phase2
