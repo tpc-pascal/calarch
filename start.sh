@@ -6,20 +6,27 @@ LIB_DIR="$SCRIPT_DIR/lib"
 CORE="$LIB_DIR/core.sh"
 CONFIG_FILE="$SCRIPT_DIR/calarch.conf"
 
-[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE" || true
+# shellcheck source=/dev/null
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE" 2>/dev/null || { echo -e "[EE] Config parse error in $CONFIG_FILE"; exit 1; }
+fi
 
-if ! command -v dialog &>/dev/null; then
-    echo -e ">>> dialog not found. Installing..."
+if ! command -v gum &>/dev/null; then
+    echo -e ">>> gum not found. Installing..."
     if command -v pacman &>/dev/null; then
-        sudo pacman -S dialog --noconfirm 2>/dev/null || true
+        sudo pacman -S gum --noconfirm 2>/dev/null || true
     fi
-    if ! command -v dialog &>/dev/null; then
-        echo -e "[EE] Cannot install dialog. Run: sudo pacman -S dialog"
+    if ! command -v gum &>/dev/null; then
+        echo -e "[EE] Cannot install gum. Run: sudo pacman -S gum"
         exit 1
     fi
 fi
 
-[ -f "$LIB_DIR/tui.sh" ] && source "$LIB_DIR/tui.sh" || log_w "tui.sh not found at $LIB_DIR/tui.sh"
+if [ -f "$LIB_DIR/tui.sh" ]; then
+    source "$LIB_DIR/tui.sh"
+else
+    echo -e "[!!] tui.sh not found — TUI unavailable, use CLI args"
+fi
 
 R='\e[0m'; B='\e[1m'
 RED='\e[0;31m'; GR='\e[0;32m'; YEL='\e[1;33m'; CY='\e[0;36m'; MG='\e[0;35m'
@@ -32,9 +39,6 @@ log_e()  { echo -e "${RED}[EE]${R} $*"; }
 has() { command -v "$1" &>/dev/null; }
 
 first_boot_mode() {
-    if [ -f "$LIB_DIR/install.sh" ]; then
-        bash "$LIB_DIR/install.sh" || true
-    fi
     exit 0
 }
 
@@ -73,11 +77,13 @@ main_menu() {
             9) bash "$LIB_DIR/profiles.sh" || log_w "profiles.sh failed" ;;
             P|p)
                 if [ "$(id -u)" -ne 0 ]; then
-                    log_w "Post-install can root. Chay lai: sudo bash start.sh"
-                    read -r -p "Enter de tiep..."
-                    continue
+                    log_w "Post-install can root. Tu dong leo thang..."
+                    exec sudo bash "$0" --post-install
                 fi
-                bash "$LIB_DIR/post-install.sh" post-install /mnt
+                local pmnt
+                pmnt=$(gum input --placeholder "/mnt" --prompt "Mount point: " 2>/dev/null || echo "/mnt")
+                [ -z "$pmnt" ] && pmnt="/mnt"
+                bash "$LIB_DIR/post-install.sh" post-install "$pmnt"
                 read -r -p "Enter de tiep..."
                 ;;
             S|s) bash "$LIB_DIR/safety.sh" || log_w "safety.sh failed" ;;
@@ -88,6 +94,10 @@ main_menu() {
 
 # --- CLI entry ---
 case "${1:-}" in
+    --version|-v)
+        echo "calarch 1.0.10"
+        exit 0
+        ;;
     -m|--mode)
         case "${2:-}" in
             first-boot) first_boot_mode ;;
@@ -95,13 +105,22 @@ case "${1:-}" in
         esac
         ;;
     --post-install)
-        sudo bash "$LIB_DIR/post-install.sh" post-install "${2:-/mnt}"
+        if [ "$(id -u)" -ne 0 ]; then
+            exec sudo bash "$0" --post-install "${2:-}"
+        fi
+        bash "$LIB_DIR/post-install.sh" post-install "${2:-/mnt}"
         ;;
     --fix-partuuid)
-        sudo bash "$LIB_DIR/post-install.sh" fix-partuuid "${2:-/mnt}" "${3:-}"
+        if [ "$(id -u)" -ne 0 ]; then
+            exec sudo bash "$0" --fix-partuuid "${2:-/mnt}" "${3:-}"
+        fi
+        bash "$LIB_DIR/post-install.sh" fix-partuuid "${2:-/mnt}" "${3:-}"
         ;;
     --refind)
-        sudo bash "$LIB_DIR/post-install.sh" refind "${2:-/mnt}"
+        if [ "$(id -u)" -ne 0 ]; then
+            exec sudo bash "$0" --refind "${2:-/mnt}"
+        fi
+        bash "$LIB_DIR/post-install.sh" refind "${2:-/mnt}"
         ;;
     --help|-h)
         echo "Usage: bash start.sh [options]"
@@ -110,9 +129,16 @@ case "${1:-}" in
         echo "  --fix-partuuid [mnt] <id> Sua PARTUUID trong refind_linux.conf"
         echo "  --refind [mnt]       Sinh refind_linux.conf"
         echo "  -m first-boot        Che do first-boot setup"
+        echo "  --version|-v         Hien phien ban"
+        exit 0
         ;;
     *)
         boot_guard
-        main_menu
+        if declare -F tui_menu &>/dev/null; then
+            main_menu
+        else
+            log_e "TUI not available (missing tui.sh). Use CLI args: --help"
+            exit 1
+        fi
         ;;
 esac

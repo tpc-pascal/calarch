@@ -74,7 +74,7 @@ SCHEMA=(
 # ============================================================================
 # UTILITY
 # ============================================================================
-R='\033[0m'; B='\033[1m'; D='\033[0;90m'; RED='\033[0;31m'; GR='\033[0;32m'
+R='\033[0m'; D='\033[0;90m'; RED='\033[0;31m'; GR='\033[0;32m'
 YEL='\033[1;33m'; CY='\033[0;36m'; MG='\033[0;35m'
 
 log_i()  { echo -e "${CY}>>>${R} $*"; }
@@ -300,7 +300,8 @@ snapshot() {
     cp "$CONFIG_FILE" "$HISTORY_DIR/config-${ts}.bak" 2>/dev/null || true
   fi
   # Cleanup: giu toi da 50 ban backup
-  ls -t "$HISTORY_DIR"/config-*.bak 2>/dev/null | tail -n +51 | xargs rm -f 2>/dev/null || true
+  find "$HISTORY_DIR" -maxdepth 1 -name 'config-*.bak' -printf '%T@ %p\0' 2>/dev/null \
+    | sort -rnz | tail -z -n +51 | cut -z -d' ' -f2- | xargs -0 rm -f 2>/dev/null || true
 }
 
 # ============================================================================
@@ -418,7 +419,7 @@ boot_guard_check() {
 
   if [ "$count" -gt 2 ]; then
     local last_backup
-    last_backup=$(ls -t "$HISTORY_DIR"/config-*.bak 2>/dev/null | head -1 || true)
+    last_backup=$(find "$HISTORY_DIR" -maxdepth 1 -name 'config-*.bak' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2- || true)
     if [ -n "$last_backup" ]; then
       log_w "Phat hien ${count} lan boot khong hoan tat! Dang rollback config..."
       cp "$last_backup" "$CONFIG_FILE"
@@ -503,10 +504,12 @@ profile_load() {
 
 profile_list() {
   mkdir -p "$PROFILE_DIR" 2>/dev/null || true
-  local files
-  files=$(ls "$PROFILE_DIR"/*.conf 2>/dev/null)
-  [ -z "$files" ] && { echo "(no profiles)"; return; }
-  for f in $files; do
+  local files=("$PROFILE_DIR"/*.conf)
+  if [ ${#files[@]} -eq 0 ] || [ ! -f "${files[0]}" ]; then
+    echo "(no profiles)"
+    return
+  fi
+  for f in "${files[@]}"; do
     local name
     name=$(basename "$f" .conf)
     echo "$name"

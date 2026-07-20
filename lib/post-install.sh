@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LIB_DIR="$SCRIPT_DIR/lib"
 BACKUP_DIR="/tmp/calarch-backups"
 
-R='\033[0m'; B='\033[1m'; D='\033[0;90m'
+R='\033[0m'; B='\033[1m'
 RED='\033[0;31m'; GR='\033[0;32m'; YEL='\033[1;33m'; CY='\033[0;36m'
 
 log_step()   { echo -e "\n${B}${CY}=== $* ===${R}"; }
@@ -27,8 +27,9 @@ backup_file() {
 }
 
 detect_root_dev() {
-    local mnt="$1"
+    local mnt="${1:-}"
     local dev=""
+    [ -z "$mnt" ] && { findmnt -n -o SOURCE / 2>/dev/null || echo ""; return; }
     dev=$(findmnt -n -o SOURCE "$mnt" 2>/dev/null || true)
     [ -z "$dev" ] && dev=$(findmnt -n -o SOURCE --target "$mnt" 2>/dev/null || true)
     if [ -z "$dev" ]; then
@@ -62,6 +63,10 @@ detect_partuuid() {
     echo "$partuuid"
 }
 
+default_kernel_params() {
+    echo "${KERNEL_PARAMS:-nowatchdog processor.max_cstate=4 intel_idle.max_cstate=4 i915.enable_fbc=1 i915.enable_psr=1 i915.enable_rc6=1 i915.fastboot=1 mitigations=off pcie_aspm=force}"
+}
+
 generate_refind_config() {
     local mnt="${1:-/mnt}"
     local root_dev="${2:-}"
@@ -73,21 +78,15 @@ generate_refind_config() {
     local partuuid=""
     [ -n "$root_dev" ] && partuuid=$(detect_partuuid "$root_dev")
 
-    local kparams="${KERNEL_PARAMS:-nowatchdog processor.max_cstate=4 intel_idle.max_cstate=4 i915.enable_fbc=1 i915.enable_psr=1 i915.enable_rc6=1 i915.fastboot=1 mitigations=off pcie_aspm=force}"
+    local kparams
+    kparams=$(default_kernel_params)
 
     if [ -z "$partuuid" ]; then
         log_error ""
         log_error "KHONG the tu dong detect PARTUUID cua root partition"
+        log_error "Cung cap thu cong: bash start.sh --fix-partuuid /mnt <PARTUUID>"
         log_error ""
-        log_error "De fix th cong, lam theo cac buoc sau:"
-        log_error "  1. Boot lai tu Arch ISO"
-        log_error "  2. Mount root partition: mount -o subvol=@ /dev/ROOT /mnt"
-        log_error "  3. Lay PARTUUID: blkid -s PARTUUID -o value /dev/ROOT"
-        log_error "  4. Sua file: sed -i 's/PLACEHOLDER/<GIA_TRI>/g' /mnt/boot/refind_linux.conf"
-        log_error "  5. Reboot"
-        log_error ""
-        log_error "Hoac chay: bash start.sh --fix-partuuid /mnt <PARTUUID>"
-        partuuid="PLACEHOLDER_PARTUUID"
+        exit 1
     fi
 
     local conf_path="$mnt/boot/refind_linux.conf"
@@ -112,34 +111,62 @@ REFIND
 }
 
 post_install() {
-    local mnt="${1:-/mnt}"
-    log_step "Calarch post-install on ${mnt}"
+    local mnt="$1"
+    local live_mode=0
+    [ -z "$mnt" ] && live_mode=1
+    [ -z "$mnt" ] && mnt=""
+    [ -n "$mnt" ] && [ ! -d "$mnt/etc" ] && live_mode=1
 
-    [ ! -d "$mnt/etc" ] && { log_error "Invalid mount point: ${mnt}"; exit 1; }
+    if [ "$live_mode" -eq 1 ]; then
+        log_step "Calarch post-install — LIVE mode"
+        mnt=""
+    else
+        log_step "Calarch post-install on ${mnt}"
+        [ ! -d "$mnt/etc" ] && { log_error "Invalid mount point: ${mnt}"; exit 1; }
+    fi
 
-    local username
-    username=$(awk -F: '$3>=1000 && $3!=65534 {print $1; exit}' "$mnt/etc/passwd" 2>/dev/null || echo "root")
-    log_info "Target user: ${username}"
-
-    local root_dev
-    root_dev=$(detect_root_dev "$mnt")
+    local username="" root_dev=""
+    if [ "$live_mode" -eq 1 ]; then
+        username="${SUDO_USER:-$USER}"
+        [ -z "$username" ] && username=$(id -un 1000 2>/dev/null || echo "root")
+        root_dev=$(findmnt -n -o SOURCE / 2>/dev/null || echo "")
+    else
+        username=$(awk -F: '$3>=1000 && $3!=65534 {print $1; exit}' "$mnt/etc/passwd" 2>/dev/null || echo "root")
+        root_dev=$(detect_root_dev "$mnt")
+    fi
     [ -n "$root_dev" ] && log_info "Root device: ${root_dev}" || log_warn "Cannot detect root device"
+
+    # Console font
+    if [ "$live_mode" -eq 1 ]; then
+        if ! pacman -Qi terminus-font &>/dev/null 2>&1; then
+            sudo pacman -S --noconfirm terminus-font 2>/dev/null || true
+        fi
+    else
+        if ! arch-chroot "$mnt" pacman -Qi terminus-font &>/dev/null 2>&1; then
+            arch-chroot "$mnt" pacman -S --noconfirm terminus-font 2>/dev/null || true
+        fi
+    fi
+    if [ "$live_mode" -eq 1 ]; then
+        if ! grep -q "^FONT=" /etc/vconsole.conf 2>/dev/null; then
+            echo "FONT=ter-132n" | sudo tee -a /etc/vconsole.conf >/dev/null 2>&1 || true
+        fi
+    fi
 
     if [ -n "$root_dev" ] && command -v btrfs &>/dev/null; then
         local fstype
-        fstype=$(findmnt -n -o FSTYPE "$mnt" 2>/dev/null || echo "")
+        fstype=$(findmnt -n -o FSTYPE "${mnt:-/}" 2>/dev/null || echo "")
         if [ "$fstype" = "btrfs" ]; then
-            if ! btrfs subvolume list "$mnt" 2>/dev/null | grep -q "@snapshots"; then
+            if ! btrfs subvolume list "${mnt:-/}" 2>/dev/null | grep -q "@snapshots"; then
                 log_info "Creating @snapshots subvolume..."
                 local top_mnt
-                top_mnt=$(findmnt -n -o TARGET --source "$root_dev" 2>/dev/null | head -1 || echo "$mnt")
+                top_mnt=$(findmnt -n -o TARGET --source "$root_dev" 2>/dev/null | head -1 || echo "${mnt:-/}")
                 btrfs subvolume create "$top_mnt/@snapshots" 2>/dev/null || log_warn "Cannot create @snapshots subvolume"
-                mkdir -p "$mnt/.snapshots" 2>/dev/null || true
+                mkdir -p "${mnt:-/}.snapshots" 2>/dev/null || true
                 local uuid
                 uuid=$(blkid -s UUID -o value "$root_dev" 2>/dev/null || echo "")
-                if [ -n "$uuid" ] && ! grep -q "\.snapshots" "$mnt/etc/fstab" 2>/dev/null; then
-                    backup_file "$mnt/etc/fstab"
-                    echo "UUID=${uuid}  /.snapshots  btrfs  subvol=@snapshots  0  0" >> "$mnt/etc/fstab"
+                if [ -n "$uuid" ] && ! grep -q "\.snapshots" "${mnt:-/}etc/fstab" 2>/dev/null; then
+                    backup_file "${mnt:-/}etc/fstab"
+                    echo "UUID=${uuid}  /.snapshots  btrfs  subvol=@snapshots  0  0" >> "${mnt:-/}etc/fstab"
                     log_ok "Created @snapshots with fstab entry"
                 fi
             else
@@ -150,12 +177,13 @@ post_install() {
         fi
     fi
 
-    patch_fstab_compression "$mnt"
+    [ -n "$mnt" ] && patch_fstab_compression "$mnt"
 
-    local kparams="${KERNEL_PARAMS:-nowatchdog processor.max_cstate=4 intel_idle.max_cstate=4 i915.enable_fbc=1 i915.enable_psr=1 i915.enable_rc6=1 i915.fastboot=1 mitigations=off pcie_aspm=force}"
+    local kparams
+    kparams=$(default_kernel_params)
 
-    if [ -d "$mnt/boot/loader/entries" ]; then
-        for f in "$mnt/boot/loader/entries/"*.conf; do
+    if [ -d "${mnt:-/}boot/loader/entries" ]; then
+        for f in "${mnt:-/}boot/loader/entries/"*.conf; do
             [ -f "$f" ] || continue
             if ! grep -q "nowatchdog" "$f" 2>/dev/null; then
                 backup_file "$f"
@@ -165,24 +193,39 @@ post_install() {
         done
     fi
 
-    if [ -f "$mnt/etc/default/grub" ]; then
-        if ! grep -q "nowatchdog" "$mnt/etc/default/grub" 2>/dev/null; then
-            backup_file "$mnt/etc/default/grub"
-            sed -i "s|GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*|& $kparams|" "$mnt/etc/default/grub"
+    if [ -f "${mnt:-/}etc/default/grub" ]; then
+        if ! grep -q "nowatchdog" "${mnt:-/}etc/default/grub" 2>/dev/null; then
+            backup_file "${mnt:-/}etc/default/grub"
+            sed -i "s|GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*|& $kparams|" "${mnt:-/}etc/default/grub"
             log_ok "Added kernel params to GRUB config"
         fi
     fi
 
-    generate_refind_config "$mnt" "$root_dev"
+    if [ -z "$mnt" ]; then
+        # Live mode: kiem tra UKI, khong can refind_linux.conf neu co UKI
+        if ls /boot/EFI/Linux/*.efi &>/dev/null 2>&1; then
+            log_info "UKI detected — skipping refind_linux.conf"
+        else
+            generate_refind_config "" "$root_dev"
+        fi
+    else
+        generate_refind_config "$mnt" "$root_dev"
+    fi
 
-    local user_home="$mnt/home/$username"
-    [ "$username" = "root" ] && user_home="$mnt/root"
-    [ ! -d "$user_home" ] && user_home="$mnt/root"
+    local user_home
+    if [ "$live_mode" -eq 1 ]; then
+        user_home=$(getent passwd "$username" 2>/dev/null | cut -d: -f6 || echo "/home/$username")
+    else
+        user_home=$(awk -F: -v u="$username" '$1==u {print $6}' "$mnt/etc/passwd" 2>/dev/null || echo "$mnt/home/$username")
+        [ ! -d "$user_home" ] && user_home="$mnt/root"
+    fi
 
     if [ -d "$user_home/calarch" ]; then
         log_info "calarch already exists at ${user_home}/calarch — skipping clone"
     else
-        if [ -d "$SCRIPT_DIR/.git" ]; then
+        if [ -d "$SCRIPT_DIR/.git" ] && [ -z "$mnt" ]; then
+            cp -a "$SCRIPT_DIR" "$user_home/calarch" 2>/dev/null || log_warn "Cannot copy calarch to ${user_home}/calarch"
+        elif [ -d "$SCRIPT_DIR/.git" ] && [ -n "$mnt" ]; then
             cp -a "$SCRIPT_DIR" "$user_home/calarch" 2>/dev/null || log_warn "Cannot copy calarch to ${user_home}/calarch"
         else
             log_info "Cloning calarch from GitHub..."
@@ -194,25 +237,28 @@ post_install() {
         fi
     fi
 
-    if [ -d "$user_home/calarch" ] && command -v arch-chroot &>/dev/null; then
-        local chroot_path
-        chroot_path="${user_home#$mnt}"
-        [ -z "$chroot_path" ] && chroot_path="/root"
-        arch-chroot "$mnt" chown -R "${username}:${username}" "$chroot_path/calarch" 2>/dev/null || true
-    fi
-
-    if command -v arch-chroot &>/dev/null; then
-        if arch-chroot "$mnt" systemctl enable NetworkManager &>/dev/null; then
-            log_ok "NetworkManager enabled for first boot"
-        else
-            log_warn "Cannot enable NetworkManager"
+    if [ "$live_mode" -eq 1 ]; then
+        if [ -d "$user_home/calarch" ]; then
+            chown -R "${username}:${username}" "$user_home/calarch" 2>/dev/null || true
+        fi
+        systemctl enable NetworkManager --now 2>/dev/null || log_warn "Cannot enable NetworkManager"
+    else
+        if [ -d "$user_home/calarch" ] && command -v arch-chroot &>/dev/null; then
+            local chroot_path
+            chroot_path="${user_home#$mnt}"
+            [ -z "$chroot_path" ] && chroot_path="/root"
+            arch-chroot "$mnt" chown -R "${username}:${username}" "$chroot_path/calarch" 2>/dev/null || true
+        fi
+        if command -v arch-chroot &>/dev/null; then
+            arch-chroot "$mnt" systemctl enable NetworkManager &>/dev/null || log_warn "Cannot enable NetworkManager"
         fi
     fi
 
-    mkdir -p "$mnt/var/lib/godmode"
-    touch "$mnt/var/lib/godmode/firstboot-pending"
+    local _p="$mnt"
+    mkdir -p "${_p:-/}var/lib/godmode"
+    touch "${_p:-/}var/lib/godmode/firstboot-pending"
 
-    cat > "$mnt/etc/profile.d/godmode-welcome.sh" << 'WELCOME'
+    cat > "${_p:-/}etc/profile.d/godmode-welcome.sh" << 'WELCOME'
 #!/bin/bash
 FLAG="/var/lib/godmode/firstboot-pending"
 DONE="/var/lib/godmode/firstboot-done"
@@ -227,8 +273,13 @@ echo "  God-Mode setup will start automatically..."
 echo ""
 WELCOME
 
-    local bashlogin="$mnt/home/$username/.bash_login"
-    [ "$username" = "root" ] && bashlogin="$mnt/root/.bash_login"
+    local bashlogin
+    if [ "$live_mode" -eq 1 ]; then
+        [ "$username" = "root" ] && bashlogin="/root/.bash_login" || bashlogin="/home/$username/.bash_login"
+    else
+        bashlogin="$mnt/home/$username/.bash_login"
+        [ "$username" = "root" ] && bashlogin="$mnt/root/.bash_login"
+    fi
     cat > "$bashlogin" << 'BASHEOF'
 #!/bin/bash
 FLAG="/var/lib/godmode/firstboot-pending"
@@ -242,23 +293,33 @@ LOG="/tmp/godmode-setup.log"
 
 touch "$RUNNING"
 (
-    for i in $(seq 1 10); do
+    for i in $(seq 1 15); do
         ping -c 1 -W 1 archlinux.org &>/dev/null && break
-        sleep 1
+        sleep 2
     done
-    if cd ~/calarch 2>/dev/null && bash start.sh -m first-boot; then
-        rm -f "$FLAG"
-        touch "$DONE"
-        echo -e "\033[1;32mGod-Mode setup complete! System ready.\033[0m"
-    else
-        echo -e "\033[1;31mGod-Mode setup failed. Retrying on next login.\033[0m"
+    command -v git &>/dev/null || sudo pacman -S git --noconfirm &>/dev/null || true
+    if [ ! -d ~/calarch ]; then
+        git clone --depth=1 https://github.com/tpc-pascal/calarch.git ~/calarch 2>/dev/null \
+            || git clone --depth=1 https://github.com/tpc-pascal/calarch.git /tmp/calarch 2>/dev/null || true
+    fi
+    if [ -d ~/calarch ]; then
+        sudo bash ~/calarch/lib/post-install.sh post-install 2>/dev/null
+        if cd ~/calarch 2>/dev/null && bash start.sh -m first-boot; then
+            rm -f "$FLAG"
+            touch "$DONE"
+            echo -e "\033[1;32mGod-Mode setup complete! System ready.\033[0m"
+        fi
     fi
     rm -f "$RUNNING"
 ) &>/tmp/godmode-setup.log &
 BASHEOF
-    chown "${username}:${username}" "$bashlogin" 2>/dev/null || true
+    if [ "$live_mode" -eq 1 ]; then
+        chown "${username}:${username}" "$bashlogin" 2>/dev/null || true
+    else
+        chown "${username}:${username}" "$bashlogin" 2>/dev/null || true
+    fi
 
-    local svc_file="$mnt/etc/systemd/system/godmode-firstboot.service"
+    local svc_file="${_p:-/}etc/systemd/system/godmode-firstboot.service"
     if [ ! -f "$svc_file" ]; then
         cat > "$svc_file" << 'SVC'
 [Unit]
@@ -273,21 +334,19 @@ RemainAfterExit=yes
 [Install]
 WantedBy=multi-user.target
 SVC
-        cat > "$mnt/usr/local/bin/godmode-firstboot.sh" << 'FBS'
+        cat > "${_p:-/}usr/local/bin/godmode-firstboot.sh" << 'FBS'
 #!/bin/bash
 set -euo pipefail
-FLAG="/var/lib/godmode/firstboot-pending"
-DONE="/var/lib/godmode/firstboot-done"
-[ ! -f "$FLAG" ] && exit 0
-[ -f "$DONE" ] && exit 0
 for i in $(seq 1 20); do
     ping -c 1 -W 1 archlinux.org &>/dev/null && break
     sleep 3
 done
 exit 0
 FBS
-        chmod +x "$mnt/usr/local/bin/godmode-firstboot.sh"
-        if command -v arch-chroot &>/dev/null; then
+        chmod +x "${_p:-/}usr/local/bin/godmode-firstboot.sh"
+        if [ "$live_mode" -eq 1 ]; then
+            systemctl enable godmode-firstboot.service 2>/dev/null || true
+        elif command -v arch-chroot &>/dev/null; then
             arch-chroot "$mnt" systemctl enable godmode-firstboot.service 2>/dev/null || true
         fi
     fi
@@ -312,7 +371,7 @@ fix_partuuid() {
         log_error "Chay lai post-install truoc: bash lib/post-install.sh $mnt"
         exit 1
     }
-    awk -v pu="$new_partuuid" '{gsub(/PLACEHOLDER_PARTUUID/, pu); gsub(/PARTUUID= /, "PARTUUID=" pu)}1' "$conf" > "${conf}.tmp" && mv "${conf}.tmp" "$conf"
+    awk -v pu="$new_partuuid" '{gsub(/PLACEHOLDER_PARTUUID/, pu); gsub(/PARTUUID=[ \t]*$/, "PARTUUID=" pu)}1' "$conf" > "${conf}.tmp" && mv "${conf}.tmp" "$conf"
     log_ok "Da cap nhat PARTUUID trong $conf"
     cat "$conf"
 }
@@ -321,7 +380,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     action="${1:-post-install}"
     case "$action" in
         post-install|--post-install)
-            post_install "${2:-/mnt}"
+            post_install "${2:-}"
             ;;
         fix-partuuid|--fix-partuuid)
             fix_partuuid "${2:-/mnt}" "${3:-}"
@@ -331,9 +390,9 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             ;;
         *)
             echo "Usage: bash lib/post-install.sh <action> [args]"
-            echo "  post-install [mnt]     — chay calarch post-install (chay 1 lan)"
-            echo "  fix-partuuid [mnt] <id> — sua PARTUUID trong refind_linux.conf"
-            echo "  refind [mnt]            — sinh refind_linux.conf"
+            echo "  post-install [mnt]       — chay calarch post-install (live neu khong co mnt)"
+            echo "  fix-partuuid [mnt] <id>  — sua PARTUUID trong refind_linux.conf"
+            echo "  refind [mnt]             — sinh refind_linux.conf"
             ;;
     esac
 fi

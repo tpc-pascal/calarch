@@ -9,7 +9,7 @@ Vui lòng đọc kỹ các hướng dẫn dưới đây trước khi bắt đầ
 ```bash
 git clone https://github.com/tpc-pascal/calarch.git
 cd calarch
-bash lib/tui.sh           # Kiểm tra dialog có sẵn
+bash lib/tui.sh           # Kiểm tra gum có sẵn
 bash lib/core.sh get KERNEL_PARAMS  # Đọc config
 ```
 
@@ -76,7 +76,7 @@ Trước khi gửi Pull Request, vui lòng đảm bảo:
 - Code chạy được trên máy cá nhân không lỗi.
 - Không làm ảnh hưởng đến các tính năng cũ.
 - Các toggle trong settings panel hoạt động đúng.
-- `bash lib/tui.sh` — dialog TUI còn hoạt động.
+- `bash lib/tui.sh` — gum TUI còn hoạt động.
 
 ---
 

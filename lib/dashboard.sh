@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================================
 # DASHBOARD.SH — Single-screen TUI Control Center
-# ANSI boxes, mouse drag-and-drop, keyboard nav, dialog popups
+# ANSI boxes, mouse drag-and-drop, keyboard nav, gum popups
 # ============================================================================
 set -euo pipefail
 
@@ -1084,7 +1084,7 @@ trap 'redraw_all' WINCH
 "$CORE" i_am_alive 2>/dev/null || true
 
 if ! tui_detect; then
-  echo -e "\e[31mERROR: dialog not found. Install: sudo pacman -S dialog\e[0m"
+  echo -e "\e[31mERROR: gum not found. Install: sudo pacman -S gum\e[0m"
   exit 1
 fi
 

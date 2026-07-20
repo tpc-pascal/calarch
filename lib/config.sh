@@ -41,7 +41,7 @@ BASE_PACKAGES=(
     btrfs-progs
     git curl vim
     networkmanager iwd dhcpcd
-    whiptail sudo zstd
+    gum sudo zstd
     man-db man-pages
     bluez bluez-utils
     pipewire pipewire-pulse wireplumber

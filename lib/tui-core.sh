@@ -1,6 +1,6 @@
 #!/bin/bash
 
-R='\e[0m'; B='\e[1m'
+R='\e[0m'
 
 declare -A P=(
   [border]="\e[36m"   [title]="\e[1;36m" [ok]="\e[32m"
