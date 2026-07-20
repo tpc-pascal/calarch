@@ -1,6 +1,6 @@
 # Hướng dẫn sử dụng calarch
 
-> Phiên bản mới nhất: v1.0.10 — Unified bootstrap: archinstall TUI + calarch post-install
+> Phiên bản mới nhất: v1.0.11 — Pre-archinstall wizard, guided partition
 
 ------------------------------------------------------------------------
 
@@ -15,28 +15,29 @@
 
 ## Cài đặt từ Arch ISO
 
-> Quy trình **bán tự động**: bootstrap.sh mở archinstall TUI (bạn tự config
-> partition/user/bootloader) → chọn Exit → calarch post-install tự động.
+> Quy trình **bán tự động**: bootstrap.sh chọn đĩa → archinstall TUI (partition/
+> filesystem/bootloader/locale/timezone) → chọn Exit → calarch post-install tự động.
 
 ### Lệnh duy nhất
 
 ```bash
 # Boot Arch USB → kiểm tra mạng (iwctl nếu cần WiFi)
-bash <(curl -s https://raw.githubusercontent.com/tpc-pascal/calarch/dev/bootstrap.sh)
+bash <(curl -s https://raw.githubusercontent.com/tpc-pascal/calarch/main/bootstrap.sh)
 ```
 
 ### Quy trình
 
 | Bước | Mô tả |
 |------|-------|
-| `bootstrap.sh` | Kiểm tra UEFI + network → chọn console font → mở **archinstall TUI** |
+| `bootstrap.sh` | Kiểm tra UEFI + network → chọn font → chọn **đĩa cài đặt** → mở **archinstall TUI** |
 | Trong archinstall | Partition đĩa, chọn Btrfs (khuyên dùng), cài bootloader, đặt locale / timezone |
 | Sau archinstall | Chọn **Exit** (KHÔNG chọn Reboot) |
 | calarch post-install | Tự động: hostname (cfxz6), user (pascal), passwords (tự sinh), rEFInd, kernel params, console font `ter-132n`, `.bash_login` godmode |
 | Sau reboot | Lần đầu login: tự động clone calarch + chạy post-install + god-mode setup |
 
 > **Ghi chú:**
-> - Trong archinstall TUI chỉ cần quan tâm partition, filesystem, bootloader, locale, timezone
+> - Đĩa đã chọn ở bước trước archinstall — khi vào TUI, chọn đúng đĩa đó
+> - Trong archinstall chỉ cần partition, filesystem, bootloader, locale, timezone
 > - Hostname (cfxz6), user (pascal) và passwords do calarch đặt tự động, lưu tại `/root/calarch-credentials.txt`
 > - Console font mặc định `ter-132n` (phù hợp HiDPI), có thể chọn font khác khi chạy bootstrap
 
@@ -58,7 +59,7 @@ btrfs subvolume create /mnt/@snapshots
 umount /mnt
 
 # Chạy bootstrap → archinstall TUI → chọn partition có sẵn → Exit
-bash <(curl -s https://raw.githubusercontent.com/tpc-pascal/calarch/dev/bootstrap.sh)
+bash <(curl -s https://raw.githubusercontent.com/tpc-pascal/calarch/main/bootstrap.sh)
 ```
 
 > **Lưu ý:** Nếu dùng `@cache`/`@log`/`@pkg`, mount đúng thứ tự — `@pkg` là

@@ -46,7 +46,7 @@ bash lib/core.sh get KERNEL_PARAMS  # Đọc config
 
 ```
 calarch/
-├── bootstrap.sh                 # Bootstrap installer — dev entry point
+├── bootstrap.sh                 # Bootstrap installer — archinstall TUI + calarch post-install
 ├── start.sh                     # Unified TUI — entry point duy nhất
 ├── lib/                         # Thư viện chính
 │   ├── post-install.sh          # Post-install setup
