@@ -48,14 +48,14 @@ jobs:
 
       - name: Shellcheck
         run: |
-          for f in make.sh start.sh lib/*.sh; do
+          for f in bootstrap.sh make.sh start.sh lib/*.sh; do
             case "$f" in lib/web.sh) continue;; esac
             shellcheck -S error "$f"
           done
 
       - name: Bash syntax check
         run: |
-          for f in make.sh start.sh lib/*.sh; do
+          for f in bootstrap.sh make.sh start.sh lib/*.sh; do
             case "$f" in lib/web.sh) continue;; esac
             bash -n "$f"
           done

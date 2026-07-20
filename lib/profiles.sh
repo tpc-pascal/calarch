@@ -2,7 +2,6 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CORE="$SCRIPT_DIR/core.sh"
-CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
 PROFILE_DIR="$SCRIPT_DIR/../profiles"
 
 has() { command -v "$1" &>/dev/null; }

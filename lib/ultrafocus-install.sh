@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================================
 # ULTRAFOCUS-INSTALL.SH — Module cai dat Ultrafocus Toolchain
-# Goi tu: lib/core.sh, lib/install.sh, hoac dung doc lap
+# Goi tu: lib/core.sh, hoac dung doc lap
 # ============================================================================
 
 set -euo pipefail

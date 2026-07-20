@@ -4,7 +4,7 @@
 
 | Công cụ | Công dụng |
 |---------|-----------|
-| [dialog](https://invisible-island.net/dialog/) | TUI widget library |
+| [gum](https://github.com/charmbracelet/gum) | Modern terminal UI library |
 | [taskset](https://man.archlinux.org/man/taskset.1) | CPU affinity |
 | [chrt](https://man.archlinux.org/man/chrt.1) | Scheduling policy |
 | [intel-undervolt](https://github.com/kitsunyan/intel-undervolt) | Undervolt Intel CPU |
