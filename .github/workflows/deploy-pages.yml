@@ -1,0 +1,41 @@
+name: Deploy Pages
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify bootstrap.sh
+        run: bash -n bootstrap.sh
+
+      - name: Build dist
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp bootstrap.sh dist/install
+          sha256sum dist/install | cut -d' ' -f1 > dist/install.sha256
+          touch dist/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

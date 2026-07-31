@@ -1,84 +1,70 @@
 # Hướng dẫn sử dụng calarch
 
-> Phiên bản mới nhất: v1.0.11 — Pre-archinstall wizard, guided partition
+> Phiên bản mới nhất: v1.0.12 — Auto WiFi connect, respect archinstall identity, github pages install url
 
-------------------------------------------------------------------------
+-----------------------------------------------------------------------
 
-## Yêu cầu
+## Phần 1 — Cài đặt
+
+### Yêu cầu
 
 - Panasonic CF-XZ6 (hoặc laptop x86_64 khác)
 - 20 GB+ dung lượng trống, USB 4 GB+
 - UEFI boot mode
 - Arch ISO (tải từ [archlinux.org](https://archlinux.org/download/))
 
-------------------------------------------------------------------------
+-----------------------------------------------------------------------
 
-## Cài đặt từ Arch ISO
+### Cài đặt từ Arch ISO
 
-> Quy trình **bán tự động**: bootstrap.sh chọn đĩa → archinstall TUI (partition/
-> filesystem/bootloader/locale/timezone) → chọn Exit → calarch post-install tự động.
-
-### Lệnh duy nhất
+> Quy trình **bán tự động**: bootstrap.sh tự kết nối mạng (hỏi SSID/password nếu
+> cần) → archinstall TUI (bạn tự đặt disk, hostname, user, password, bootloader,
+> locale, timezone) → chọn Exit → calarch post-install tự động.
 
 ```bash
-# Boot Arch USB → kiểm tra mạng (iwctl nếu cần WiFi)
-bash <(curl -s https://raw.githubusercontent.com/tpc-pascal/calarch/main/bootstrap.sh)
+# Boot Arch USB → chạy (script tự kết nối WiFi nếu chưa có mạng)
+bash <(curl -s https://tpc-pascal.github.io/calarch/install)
 ```
 
-### Quy trình
+> **Fallback** (nếu GitHub Pages không truy cập được):
+> ```bash
+> bash <(curl -s https://raw.githubusercontent.com/tpc-pascal/calarch/main/bootstrap.sh)
+> ```
+>
+> **Verify checksum** (tùy chọn):
+> ```bash
+> curl -sO https://tpc-pascal.github.io/calarch/install
+> echo "$(curl -s https://tpc-pascal.github.io/calarch/install.sha256)  install" | sha256sum -c - && bash install
+> ```
 
 | Bước | Mô tả |
 |------|-------|
-| `bootstrap.sh` | Kiểm tra UEFI + network → chọn font → chọn **đĩa cài đặt** → mở **archinstall TUI** |
-| Trong archinstall | Partition đĩa, chọn Btrfs (khuyên dùng), cài bootloader, đặt locale / timezone |
+| `bootstrap.sh` | Kiểm tra UEFI + network (tự hỏi SSID/password nếu chưa có mạng) → chọn font → mở **archinstall TUI** |
+| Trong archinstall | Bạn tự đặt: disk, partition, filesystem (Btrfs khuyên dùng), bootloader, locale, timezone, **hostname, user, password** |
 | Sau archinstall | Chọn **Exit** (KHÔNG chọn Reboot) |
-| calarch post-install | Tự động: hostname (cfxz6), user (pascal), passwords (tự sinh), rEFInd, kernel params, console font `ter-132n`, `.bash_login` godmode |
+| calarch post-install | Tự động: kernel params, console font, rEFInd (nếu dùng), `.bash_login` godmode |
 | Sau reboot | Lần đầu login: tự động clone calarch + chạy post-install + god-mode setup |
 
 > **Ghi chú:**
-> - Đĩa đã chọn ở bước trước archinstall — khi vào TUI, chọn đúng đĩa đó
-> - Trong archinstall chỉ cần partition, filesystem, bootloader, locale, timezone
-> - Hostname (cfxz6), user (pascal) và passwords do calarch đặt tự động, lưu tại `/root/calarch-credentials.txt`
+> - Hostname, user và password do **bạn tự đặt trong archinstall** — calarch không ghi đè
+> - Disk cũng do bạn tự chọn trong archinstall
 > - Console font mặc định `ter-132n` (phù hợp HiDPI), có thể chọn font khác khi chạy bootstrap
 
-### Nâng cao — partition thủ công
+-----------------------------------------------------------------------
 
-Nếu muốn tự chia Btrfs subvolume, partition trước rồi chạy bootstrap.sh — trong
-archinstall TUI, chọn các partition có sẵn thay vì tạo mới.
+### Sau khi reboot lần đầu
 
-```bash
-# Partition thủ công (ví dụ ESP + Btrfs root)
-mkfs.fat -F32 /dev/nvme0n1p1
-mkfs.btrfs -f /dev/nvme0n1p2
-
-# Tạo subvolumes
-mount /dev/nvme0n1p2 /mnt
-btrfs subvolume create /mnt/@
-btrfs subvolume create /mnt/@home
-btrfs subvolume create /mnt/@snapshots
-umount /mnt
-
-# Chạy bootstrap → archinstall TUI → chọn partition có sẵn → Exit
-bash <(curl -s https://raw.githubusercontent.com/tpc-pascal/calarch/main/bootstrap.sh)
-```
-
-> **Lưu ý:** Nếu dùng `@cache`/`@log`/`@pkg`, mount đúng thứ tự — `@pkg` là
-> subvolume con của `@cache`. Xem Arch Wiki.
-
-------------------------------------------------------------------------
-
-## Sau khi reboot lần đầu
-
-1. **Login:** user `pascal` (password đã hiển thị trước reboot, lưu tại
-   `/root/calarch-credentials.txt` trên ISO)
+1. **Login:** user + password do bạn tự đặt trong archinstall
 2. **Tự động:** `.bash_login` cài git, clone calarch, chạy post-install +
    god-mode setup (ngầm, không block login) — log tại `/tmp/godmode-setup.log`
 3. **Kiểm tra:** `cat /tmp/godmode-setup.log` — nếu có lỗi, login sau tự thử lại
 4. **Hoàn tất:** `cd ~/calarch && bash start.sh`
 
-------------------------------------------------------------------------
+-----------------------------------------------------------------------
 
-## Unified TUI — bash start.sh
+## Phần 2 — Sử dụng
+
+### Unified TUI — bash start.sh
 
 Chạy `bash start.sh` để mở menu chính:
 
@@ -96,119 +82,31 @@ Chạy `bash start.sh` để mở menu chính:
 | P | Post-Install Setup — chạy sau khi cài Arch (một lần) |
 | S | Safety Engine — grace period, undo, history |
 
-------------------------------------------------------------------------
+### Các công cụ chi tiết
 
-## Các công cụ chi tiết
+Mọi công cụ đều mở được từ TUI (số tương ứng) hoặc chạy trực tiếp:
 
-### System Monitor (`lib/system.sh`)
+| Công cụ | TUI | Script | Mô tả |
+|---------|-----|--------|-------|
+| System Monitor | 1 | `lib/system.sh` | CPU, temp, freq, governor, eco/super mode |
+| Settings Panel | 2 | `lib/settings.sh` | Super Mode, Affinity, Eco, Undervolt, Services, Apps |
+| Drive Manager | 3 | `lib/mount.sh` | Mount/unmount partition theo fstype |
+| Wallpaper Changer | 4 | `lib/wallpaper.sh` | Chafa preview, hyprpaper/swaybg/feh |
+| Focus Mode | 5 | `lib/focus.sh` | Pomodoro + website blocker |
+| Notes | 6 | `lib/notes.sh` | Obsidian vault manager |
+| Games | 7 | `lib/games.sh` | minetest, assaultcube, megaglest |
 
-Hiển thị thông số hệ thống: CPU load, nhiệt độ, tần số, governor, eco mode,
-super mode.
+-----------------------------------------------------------------------
 
-```bash
-# Từ TUI: chọn 1
-# Hoặc chạy trực tiếp:
-bash lib/system.sh
-```
-
-### Settings Panel (`lib/settings.sh`)
-
-Ba nhóm cài đặt:
-
-| Nhóm | Các toggle |
-|------|------------|
-| System | Super Mode, CPU Affinity, Eco Mode, Undervolt, Auto-rotate, Touchpad |
-| Services | Docker, KVM/libvirtd, Ollama, Auto-maintenance |
-| Apps | Obsidian, Website Blocker, Notes, Focus, Launcher, Firefox, Neovim, Spotify, Emacs |
-
-```bash
-# Từ TUI: chọn 2
-bash lib/settings.sh
-```
-
-### Drive Manager (`lib/mount.sh`)
-
-Quản lý tất cả partition/volume:
-
-- List partitions (màu xanh = mounted, vàng = unmounted)
-- Mount tự động theo fstype (NTFS, exfat, vfat, ext4, btrfs)
-- Unmount an toàn, hỗ trợ lazy unmount
-- Browse file manager
-
-```bash
-# Từ TUI: chọn 3
-bash lib/mount.sh
-```
-
-### Wallpaper Changer (`lib/wallpaper.sh`)
-
-- Chafa preview thumbnail ngay trong terminal
-- Set wallpaper (hyprpaper/swaybg/feh)
-- Random wallpaper
-- Import custom ảnh
-
-```bash
-# Từ TUI: chọn 4
-bash lib/wallpaper.sh
-```
-
-### Focus Mode (`lib/focus.sh`)
-
-- Pomodoro timer (25/5/4 mặc định)
-- Website blocker (chặn Facebook, Twitter, Reddit, YouTube...)
-- Cấu hình trong `calarch.conf`
-
-```bash
-# Từ TUI: chọn 5
-bash lib/focus.sh
-```
-
-### Notes (`lib/notes.sh`)
-
-- Obsidian vault manager
-- Tạo vault tại `~/notes/`
-
-```bash
-# Từ TUI: chọn 6
-bash lib/notes.sh
-```
-
-### Games (`lib/games.sh`)
-
-- minetest, assaultcube, megaglest (từ Arch official repo)
-
-```bash
-# Từ TUI: chọn 7
-bash lib/games.sh
-```
-
-------------------------------------------------------------------------
-
-## rEFInd ESP Kernel Sync
+### rEFInd ESP Kernel Sync
 
 Khi rEFInd không thấy Arch trong menu boot (do driver EFI không hỗ trợ Btrfs
 nén zstd).
 
-### Kiểm tra trạng thái
-
 ```bash
-bash lib/refind-sync.sh --check
+bash lib/refind-sync.sh --check    # Kiểm tra trạng thái
+sudo bash lib/refind-sync.sh       # Đồng bộ kernel ra ESP
 ```
-
-### Đồng bộ kernel ra ESP
-
-```bash
-# Từ hệ thống đã cài
-sudo bash lib/refind-sync.sh
-
-# Từ ISO (mount sẵn /mnt)
-sudo bash lib/refind-sync.sh --mnt /mnt
-
-# Chỉ định ESP thủ công
-sudo bash lib/refind-sync.sh --mnt /mnt --esp /dev/sdX1
-```
-
-### Các trường hợp đặc biệt
 
 | Trường hợp | Xử lý |
 |------------|-------|
@@ -220,46 +118,15 @@ sudo bash lib/refind-sync.sh --mnt /mnt --esp /dev/sdX1
 | ESP sắp đầy | Kiểm tra dung lượng trước khi copy |
 | **UKI mode** | Phát hiện UKI → skip kernel sync + entry, chỉ cài hook |
 
-### UKI Mode
+> **UKI Mode:** rEFInd tự dò file `.efi` trong ESP — bỏ qua copy kernel/entry,
+> chỉ cài pacman hook rebuild UKI sau mỗi kernel update.
+>
+> **Pacman Hook:** sau khi sync, hook tự chạy mỗi `pacman -Syu` tại
+> `/etc/pacman.d/hooks/calarch-sync-kernel.hook` + `/usr/local/bin/calarch-sync-kernel.sh`.
 
-Nếu dùng UKI (Unified Kernel Image), rEFInd tự động dò tìm file `.efi` trong
-ESP. `refind-sync.sh` sẽ tự phát hiện và:
+-----------------------------------------------------------------------
 
-- Bỏ qua copy kernel (kernel đã bundle trong UKI)
-- Bỏ qua generate rEFInd entry
-- Chỉ cài pacman hook để rebuild UKI sau mỗi kernel update
-
-### Pacman Hook
-
-Sau khi chạy `refind-sync.sh`, hook được cài tại:
-
-- `/etc/pacman.d/hooks/calarch-sync-kernel.hook`
-- Script: `/usr/local/bin/calarch-sync-kernel.sh`
-
-Tự động chạy sau mỗi `pacman -Syu`.
-
-------------------------------------------------------------------------
-
-## Fix PARTUUID
-
-> **Không cần nếu dùng UKI** — UKI bundle kernel + initramfs + cmdline,
-> rEFInd tự boot được.
-
-Nếu `refind_linux.conf` chứa `PLACEHOLDER_PARTUUID` hoặc để trống:
-
-```bash
-# Từ Arch ISO
-mount -o subvol=@ /dev/nvme0n1p2 /mnt
-blkid -s PARTUUID -o value /dev/nvme0n1p2
-sudo bash lib/post-install.sh fix-partuuid /mnt <PARTUUID>
-
-# Hoặc từ hệ thống đã boot
-sudo bash start.sh --fix-partuuid /mnt <PARTUUID>
-```
-
-------------------------------------------------------------------------
-
-## Config Center — calarch.conf
+### Config Center — calarch.conf
 
 Mọi tham số tập trung tại một file:
 
@@ -288,22 +155,18 @@ WALLPAPER_ENGINE="hyprpaper"
 REFIND_SYNC_ESP="true"
 ```
 
-------------------------------------------------------------------------
+-----------------------------------------------------------------------
 
-## Profiles
+### Profiles
 
 Lưu và nạp cấu hình từ `profiles/`:
 
 ```bash
-# Qua TUI: start.sh → Profiles
-# Hoặc CLI:
 bash lib/core.sh profile save my-config     # Lưu
 bash lib/core.sh profile load my-config     # Nạp
 bash lib/core.sh profile list               # Danh sách
 bash lib/core.sh profile delete my-config   # Xóa
 ```
-
-### Profiles mặc định
 
 | Profile | Mô tả |
 |---------|-------|
@@ -311,51 +174,29 @@ bash lib/core.sh profile delete my-config   # Xóa
 | **performance** | Undervolt -80mV, schedutil, eco OFF |
 | **battery** | Eco 60%, powersave, affinity core 0 |
 
-------------------------------------------------------------------------
+-----------------------------------------------------------------------
 
-## Safety Engine
+### Safety Engine
 
-### Grace Period
+- **Grace Period:** thay đổi tham số critical (undervolt, governor, cstate) →
+  đếm ngược 5 phút, hết giờ tự revert. Confirm: `bash lib/core.sh grace_confirm UNDERVOLT_CPU`
+- **Boot Guard:** boot fail > 2 lần → tự rollback config.
+  Kiểm tra: `bash lib/core.sh boot_check`
+- **Undo / History:**
+  ```bash
+  bash lib/core.sh undo        # Hoàn tác thay đổi cuối
+  bash lib/core.sh log 10      # Xem lịch sử
+  ```
 
-Khi thay đổi tham số critical (undervolt, governor, cstate):
+-----------------------------------------------------------------------
 
-1. Dashboard hiển thị countdown
-2. Bạn có **5 phút** để xác nhận
-3. Hết giờ → tự động revert về giá trị cũ
-4. Confirm qua CLI: `bash lib/core.sh grace_confirm UNDERVOLT_CPU`
-
-### Boot Guard
-
-- Mỗi lần boot, calarch đếm số lần boot
-- Nếu boot fail > 2 lần → tự động rollback config
-- Kiểm tra: `bash lib/core.sh boot_check`
-
-### Undo / History
-
-```bash
-bash lib/core.sh undo        # Hoàn tác thay đổi cuối
-bash lib/core.sh log 10      # Xem lịch sử
-```
-
-------------------------------------------------------------------------
-
-## Fix lỗi thường gặp
+## Phần 3 — Xử lý sự cố
 
 ### rEFInd không thấy Arch
 
 ```bash
 bash lib/refind-sync.sh --check
 sudo bash lib/refind-sync.sh
-```
-
-### PARTUUID bị trống hoặc PLACEHOLDER
-
-> Nếu dùng UKI, bỏ qua mục này (UKI không cần refind_linux.conf).
-
-```bash
-mount -o subvol=@ /dev/nvme0n1p2 /mnt
-blkid -s PARTUUID -o value /dev/nvme0n1p2
-sudo bash lib/post-install.sh fix-partuuid /mnt <PARTUUID>
 ```
 
 ### Post-install bị lỗi

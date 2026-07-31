@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.11"
+VERSION="1.0.12"
 
 # --- Colors ---
 R='\033[0m'; B='\033[1m'
@@ -42,6 +42,7 @@ ROOT_PASS="${CALARCH_ROOT_PASS:-}"
 USER_PASS="${CALARCH_USER_PASS:-}"
 CONSOLE_FONT="${CALARCH_CONSOLE_FONT:-ter-132n}"
 KERNEL_PARAMS="${CALARCH_KERNEL_PARAMS:-nowatchdog processor.max_cstate=4 intel_idle.max_cstate=4 i915.enable_fbc=1 i915.enable_psr=1 i915.enable_rc6=1 i915.fastboot=1 mitigations=off pcie_aspm=force}"
+ARCHINSTALL_DONE=0
 
 BASE_PKGS=(
     base base-devel
@@ -206,33 +207,34 @@ prompt_font() {
     esac
 }
 
-# ============================================================================
-# PRE-ARCHINSTALL WIZARD
-# ============================================================================
+connect_wifi() {
+    echo ""
+    warn "Khong co mang (ethernet/WiFi chua ket noi)."
+    echo -n "Nhap ten mang WiFi (SSID): "
+    local ssid
+    read -r ssid
+    echo -n "Nhap mat khau WiFi: "
+    local pass
+    read -r -s pass
+    echo ""
 
-prompt_install_mode() {
-    [ "$AUTO" -eq 1 ] && return
-    section "CHỌN ĐĨA CÀI ĐẶT"
-
-    [ -z "$DISK" ] && DISK=$(detect_disk)
-    [ -z "$DISK" ] && err "No disk found"
-
-    local info
-    info=$(lsblk -dno NAME,SIZE,MODEL "$DISK" 2>/dev/null | awk '{print $1" ("$2") - "$3}')
-    echo -e "Phát hiện: ${B}${DISK}${R} — ${info}"
-    echo -n "Dùng đĩa này? (ALL DATA SẼ BỊ XOÁ) [Y/n]: "
-    local ans
-    read -r ans
-    if [[ "$ans" =~ ^[nN] ]]; then
-        echo ""
-        echo "Các đĩa khả dụng:"
-        lsblk -dno NAME,SIZE,MODEL,TYPE | awk '$4=="disk" {printf "  /dev/%s  (%s, %s)\n", $1, $2, $3}'
-        echo -n "Nhập đường dẫn (vd: /dev/nvme0n1): "
-        read -r DISK
+    local dev
+    dev=$(iwctl device list 2>/dev/null | awk '$1=="station" || $4=="station" {print $1; exit}')
+    [ -z "$dev" ] && dev=$(iwctl device list 2>/dev/null | grep -i station | awk '{print $1; exit}')
+    if [ -z "$dev" ]; then
+        dev=$(iwctl device list 2>/dev/null | sed -n 's/^[[:space:]]*\(wlan[0-9]*\).*/\1/p' | head -1)
     fi
-    validate_nonempty "DISK" "${DISK:-}"
-    validate_disk "$DISK"
-    ok "Disk: $DISK"
+    [ -z "$dev" ] && err "Khong tim thay WiFi adapter (iwctl device list)"
+    ok "WiFi adapter: $dev"
+
+    iwctl --passphrase "$pass" station "$dev" connect "$ssid" 2>/dev/null || true
+    sleep 5
+
+    if ping -c 1 -W 3 archlinux.org &>/dev/null; then
+        ok "WiFi connected: $ssid"
+    else
+        err "Khong ket noi duoc WiFi. Thu lai: iwctl station $dev connect '$ssid'"
+    fi
 }
 
 # ============================================================================
@@ -249,11 +251,12 @@ try_archinstall() {
 
     echo ""
     echo "╔══════════════════════════════════════════════════════╗"
-    echo "║  archinstall TUI — cau hinh he thong co ban         ║"
+    echo "║  archinstall TUI — cau hinh day du                   ║"
     echo "║                                                    ║"
-    echo "║  • Partition + Filesystem                           ║"
+    echo "║  • Disk + Partition + Filesystem                    ║"
     echo "║  • Bootloader                                      ║"
     echo "║  • Locale + Timezone                               ║"
+    echo "║  • Hostname + User + Password (do BAN dat)         ║"
     echo "║                                                    ║"
     echo "║  QUAN TRONG: Chon Exit (KHONG Reboot)               ║"
     echo "║  de calarch tu dong chay post-install.             ║"
@@ -374,16 +377,21 @@ phase2() {
 phase3() {
     section "PHASE 3: System configuration"
 
-    validate_hostname "$HOSTNAME"
-    validate_username "$USERNAME"
-    validate_timezone "$TIMEZONE"
-    validate_locale "$LOCALE"
+    if [ "$ARCHINSTALL_DONE" -eq 0 ]; then
+        validate_hostname "$HOSTNAME"
+        validate_username "$USERNAME"
+        validate_timezone "$TIMEZONE"
+        validate_locale "$LOCALE"
 
-    if [ -z "$ROOT_PASS" ]; then
-        ROOT_PASS=$(tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c12) || ROOT_PASS="calarch"
-    fi
-    if [ -z "$USER_PASS" ]; then
-        USER_PASS=$(tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c12) || USER_PASS="calarch"
+        if [ -z "$ROOT_PASS" ]; then
+            ROOT_PASS=$(tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c12) || ROOT_PASS="calarch"
+        fi
+        if [ -z "$USER_PASS" ]; then
+            USER_PASS=$(tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c12) || USER_PASS="calarch"
+        fi
+    else
+        USERNAME=$(awk -F: '$3>=1000 && $3!=65534 {print $1; exit}' /mnt/etc/passwd 2>/dev/null || echo "")
+        [ -z "$USERNAME" ] && err "Khong tim thay user thuong trong he thong vua cai (phai tao user trong archinstall)"
     fi
 
     local SCRIPT_DIR
@@ -395,6 +403,12 @@ phase3() {
 
     mkdir -p /mnt/tmp
     cat > /mnt/tmp/state.sh << STATEEOF
+KERNEL_PARAMS=$(safe_sh "$KERNEL_PARAMS")
+CONSOLE_FONT=$(safe_sh "$CONSOLE_FONT")
+ARCHINSTALL_DONE=$(safe_sh "$ARCHINSTALL_DONE")
+STATEEOF
+    if [ "$ARCHINSTALL_DONE" -eq 0 ]; then
+        cat >> /mnt/tmp/state.sh << STATEEOF
 TIMEZONE=$(safe_sh "$TIMEZONE")
 LOCALE=$(safe_sh "$LOCALE")
 KEYMAP=$(safe_sh "$KEYMAP")
@@ -402,9 +416,8 @@ HOSTNAME=$(safe_sh "$HOSTNAME")
 USERNAME=$(safe_sh "$USERNAME")
 ROOT_PASS=$(safe_sh "$ROOT_PASS")
 USER_PASS=$(safe_sh "$USER_PASS")
-KERNEL_PARAMS=$(safe_sh "$KERNEL_PARAMS")
-CONSOLE_FONT=$(safe_sh "$CONSOLE_FONT")
 STATEEOF
+    fi
 
     cat > /mnt/tmp/chroot.sh << 'CRSCRIPT'
 #!/bin/bash
@@ -412,59 +425,64 @@ set -euo pipefail
 
 source /tmp/state.sh
 
-ln -sf "/usr/share/zoneinfo/${TIMEZONE}" /etc/localtime
-hwclock --systohc
+if [ "$ARCHINSTALL_DONE" -eq 0 ]; then
+    ln -sf "/usr/share/zoneinfo/${TIMEZONE}" /etc/localtime
+    hwclock --systohc
 
-sed -i "s/^#\(${LOCALE}\)/\1/" /etc/locale.gen 2>/dev/null || \
-    sed -i "s/^# *${LOCALE}/${LOCALE}/" /etc/locale.gen 2>/dev/null || true
-locale-gen 2>/dev/null || true
-echo "LANG=${LOCALE}" > /etc/locale.conf
-echo "KEYMAP=${KEYMAP}" > /etc/vconsole.conf
-[ -n "${CONSOLE_FONT}" ] && echo "FONT=${CONSOLE_FONT}" >> /etc/vconsole.conf
+    sed -i "s/^#\(${LOCALE}\)/\1/" /etc/locale.gen 2>/dev/null || \
+        sed -i "s/^# *${LOCALE}/${LOCALE}/" /etc/locale.gen 2>/dev/null || true
+    locale-gen 2>/dev/null || true
+    echo "LANG=${LOCALE}" > /etc/locale.conf
+    echo "KEYMAP=${KEYMAP}" > /etc/vconsole.conf
 
-echo "${HOSTNAME}" > /etc/hostname
-cat > /etc/hosts << HEOF
+    echo "${HOSTNAME}" > /etc/hostname
+    cat > /etc/hosts << HEOF
 127.0.0.1   localhost
 ::1         localhost
 127.0.1.1   ${HOSTNAME}.localdomain ${HOSTNAME}
 HEOF
 
-echo "root:${ROOT_PASS}" | chpasswd || echo "WARN: root password change failed"
-useradd -m -G wheel,storage,power,audio,video,input -s /bin/bash "${USERNAME}" 2>/dev/null || true
-echo "${USERNAME}:${USER_PASS}" | chpasswd || echo "WARN: user password change failed"
+    echo "root:${ROOT_PASS}" | chpasswd || echo "WARN: root password change failed"
+    useradd -m -G wheel,storage,power,audio,video,input -s /bin/bash "${USERNAME}" 2>/dev/null || true
+    echo "${USERNAME}:${USER_PASS}" | chpasswd || echo "WARN: user password change failed"
 
-echo "%wheel ALL=(ALL:ALL) ALL" > /etc/sudoers.d/99-wheel
-chmod 440 /etc/sudoers.d/99-wheel
-
-sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block filesystems fsck btrfs)/' /etc/mkinitcpio.conf
-mkinitcpio -P || echo "WARN: mkinitcpio failed"
-
-if command -v refind-install &>/dev/null; then
-    refind-install 2>/dev/null || true
-else
-    echo "WARN: refind-install not found"
+    echo "%wheel ALL=(ALL:ALL) ALL" > /etc/sudoers.d/99-wheel
+    chmod 440 /etc/sudoers.d/99-wheel
 fi
 
-ROOT_DEV=$(findmnt -n -o SOURCE / 2>/dev/null || echo "")
-PARTUUID=""
-[ -n "$ROOT_DEV" ] && PARTUUID=$(blkid -s PARTUUID -o value "$ROOT_DEV" 2>/dev/null || echo "")
-if [ -n "$PARTUUID" ]; then
-    cat > /boot/refind_linux.conf << REFEOF
+[ -n "${CONSOLE_FONT}" ] && ! grep -q "^FONT=" /etc/vconsole.conf 2>/dev/null && echo "FONT=${CONSOLE_FONT}" >> /etc/vconsole.conf
+
+if [ "$ARCHINSTALL_DONE" -eq 0 ]; then
+    sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block filesystems fsck btrfs)/' /etc/mkinitcpio.conf
+fi
+mkinitcpio -P || echo "WARN: mkinitcpio failed"
+
+if [ -d /boot/EFI/refind ]; then
+    refind-install 2>/dev/null || true
+
+    ROOT_DEV=$(findmnt -n -o SOURCE / 2>/dev/null || echo "")
+    PARTUUID=""
+    [ -n "$ROOT_DEV" ] && PARTUUID=$(blkid -s PARTUUID -o value "$ROOT_DEV" 2>/dev/null || echo "")
+    if [ -n "$PARTUUID" ]; then
+        cat > /boot/refind_linux.conf << REFEOF
 "Boot with defaults"  "root=PARTUUID=${PARTUUID} rw rootflags=subvol=@ ${KERNEL_PARAMS}"
 "Boot to single-user" "root=PARTUUID=${PARTUUID} rw rootflags=subvol=@ single ${KERNEL_PARAMS}"
 "Boot with minimal"   "root=PARTUUID=${PARTUUID} rw rootflags=subvol=@ ${KERNEL_PARAMS}"
 REFEOF
-else
-    echo "WARN: Cannot detect PARTUUID — rEFInd may not boot without manual fix"
-    cat > /boot/refind_linux.conf << 'REFEOF'
+    else
+        echo "WARN: Cannot detect PARTUUID — rEFInd may not boot without manual fix"
+        cat > /boot/refind_linux.conf << 'REFEOF'
 "Boot with defaults"  "root=PARTUUID=PLACEHOLDER rw rootflags=subvol=@ nowatchdog ..."
 "Boot to single-user" "root=PARTUUID=PLACEHOLDER rw rootflags=subvol=@ single nowatchdog ..."
 "Boot with minimal"   "root=PARTUUID=PLACEHOLDER rw rootflags=subvol=@ nowatchdog ..."
 REFEOF
-fi
+    fi
 
-if [ -x /usr/local/bin/refind-sync.sh ]; then
-    /usr/local/bin/refind-sync.sh 2>/dev/null || true
+    if [ -x /usr/local/bin/refind-sync.sh ]; then
+        /usr/local/bin/refind-sync.sh 2>/dev/null || true
+    fi
+else
+    echo "rEFInd not detected — kernel params handled by godmode post-install (systemd-boot/GRUB)"
 fi
 
 systemctl enable NetworkManager 2>/dev/null || true
@@ -479,8 +497,9 @@ CRSCRIPT
     arch-chroot /mnt /tmp/chroot.sh || warn "arch-chroot completed with warnings"
     rm -f /mnt/tmp/chroot.sh /mnt/tmp/state.sh
 
-    mkdir -p /root 2>/dev/null || true
-    cat > "$CRED_FILE" << EOF
+    if [ "$ARCHINSTALL_DONE" -eq 0 ]; then
+        mkdir -p /root 2>/dev/null || true
+        cat > "$CRED_FILE" << EOF
 ╔══════════════════════════════════════════╗
 ║     CALARCH INSTALLATION CREDENTIALS     ║
 ╚══════════════════════════════════════════╝
@@ -494,10 +513,11 @@ After reboot, login as ${USERNAME}.
 On first login, everything runs automatically.
 Check: cat /tmp/godmode-setup.log
 EOF
-    chmod 600 "$CRED_FILE" 2>/dev/null || true
+        chmod 600 "$CRED_FILE" 2>/dev/null || true
+        ok "Credentials saved to ${CRED_FILE}"
+    fi
 
     ok "System configured"
-    ok "Credentials saved to ${CRED_FILE}"
 }
 
 # ============================================================================
@@ -506,6 +526,9 @@ EOF
 
 phase4() {
     section "PHASE 4: First-boot hooks"
+
+    USERNAME=$(awk -F: '$3>=1000 && $3!=65534 {print $1; exit}' /mnt/etc/passwd 2>/dev/null || echo "")
+    [ -z "$USERNAME" ] && err "Khong tim thay user thuong (phai tao user trong archinstall)"
 
     mkdir -p "/mnt/var/lib/godmode"
     touch "/mnt/var/lib/godmode/firstboot-pending"
@@ -562,9 +585,21 @@ BASHEOF
 phase5() {
     section "PHASE 5: Final checks"
 
+    USERNAME=$(awk -F: '$3>=1000 && $3!=65534 {print $1; exit}' /mnt/etc/passwd 2>/dev/null || echo "")
+    HOSTNAME=$(cat /mnt/etc/hostname 2>/dev/null || echo "")
+
+    local bootloader="unknown"
+    if [ -f /mnt/boot/refind_linux.conf ]; then
+        bootloader="rEFInd"
+    elif [ -d /mnt/boot/loader/entries ]; then
+        bootloader="systemd-boot"
+    elif [ -f /mnt/boot/grub/grub.cfg ]; then
+        bootloader="GRUB"
+    fi
+
     local checks=0
     [ -f /mnt/etc/fstab ] && checks=$((checks + 1))
-    [ -f /mnt/boot/refind_linux.conf ] && checks=$((checks + 1))
+    [ "$bootloader" != "unknown" ] && checks=$((checks + 1))
     [ -f "/mnt/home/${USERNAME}/.bash_login" ] && checks=$((checks + 1))
     [ -d /mnt/usr/share/zoneinfo ] && checks=$((checks + 1))
 
@@ -573,10 +608,10 @@ phase5() {
     echo -e "${B}${GR}║            CALARCH INSTALLATION COMPLETE!              ║${R}"
     echo -e "${B}${GR}╚══════════════════════════════════════════════════════════╝${R}"
     echo ""
-    echo "  Disk:       $DISK"
-    echo "  Hostname:   $HOSTNAME"
-    echo "  Username:   $USERNAME"
-    echo "  Bootloader: rEFInd"
+    echo "  Disk:       ${DISK:-auto}"
+    echo "  Hostname:   ${HOSTNAME}"
+    echo "  Username:   ${USERNAME}"
+    echo "  Bootloader: $bootloader"
     echo "  Checks:     $checks/4 passed"
     echo ""
 
@@ -616,7 +651,9 @@ phase0() {
             dhcpcd -q -t 10 2>/dev/null || true
             sleep 3
         fi
-        ping -c 1 -W 3 archlinux.org &>/dev/null || err "Network required. Connect via: iwctl"
+        if ! ping -c 1 -W 3 archlinux.org &>/dev/null; then
+            connect_wifi
+        fi
     fi
     ok "Network OK"
 
@@ -639,8 +676,10 @@ if [ "$AUTO" -eq 1 ]; then
     phase1
     phase2
 else
-    prompt_install_mode
-    if ! try_archinstall; then
+    if try_archinstall; then
+        ARCHINSTALL_DONE=1
+    else
+        prompt_disk
         prompt_identity
         phase1
         phase2
