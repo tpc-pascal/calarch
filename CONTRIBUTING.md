@@ -64,6 +64,9 @@ calarch/
 │   ├── dashboard.sh             # Legacy dashboard
 │   └── ... (các script khác)
 ├── calarch.conf                 # Config trung tâm
+├── .github/workflows/
+│   ├── release.yml
+│   └── deploy-pages.yml
 └── make.sh                      # Builder
 ```
 

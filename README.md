@@ -35,7 +35,7 @@
 ```
 calarch/
 ├── calarch.conf                 Config trung tâm
-├── bootstrap.sh                 Bootstrap installer → chọn đĩa → archinstall TUI → post-install
+├── bootstrap.sh                 Bootstrap installer → archinstall TUI → post-install
 ├── start.sh                     Unified TUI — entry point duy nhất
 ├── make.sh                      Builder → calarch-v*.run
 ├── profiles/                    Preset configs
@@ -58,7 +58,9 @@ calarch/
 │   ├── dashboard.sh             Legacy dashboard
 │   └── ... (các script khác)
 ├── assets/logo.svg
-├── .github/workflows/release.yml
+├── .github/workflows/
+│   ├── release.yml
+│   └── deploy-pages.yml
 ├── CONTRIBUTING.md
 ├── CREDITS.md
 ├── GUIDE.md
