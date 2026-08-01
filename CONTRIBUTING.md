@@ -90,6 +90,16 @@ VERSION=<version> bash make.sh
 # Output: calarch-v<version>.run
 ```
 
+### Bump version (khi phát hành bản mới)
+
+Sửa đồng bộ **3 chỗ**:
+
+- `bootstrap.sh` → `VERSION="<version>"`
+- `start.sh` → `echo "calarch <version>"`
+- `GUIDE.md` → dòng tagline "Phiên bản mới nhất: v<version>"
+
+Ví dụ: v1.0.12 → v1.0.13 sửa cả `bootstrap.sh:15`, `start.sh:99`, `GUIDE.md:3`.
+
 ---
 
 ## Liên hệ

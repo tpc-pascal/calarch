@@ -20,6 +20,7 @@
 | Tài liệu | Nội dung | Liên kết |
 |----------|----------|----------|
 | **Arch Linux Wiki** | Hướng dẫn cấu hình hệ thống | [wiki.archlinux.org](https://wiki.archlinux.org) |
+| **archinstall** | Trình cài đặt Arch TUI (bootstrap chính) | [archlinux.org/archinstall](https://archlinux.org/archinstall/) |
 | **Hyprland Wiki** | Tài liệu Wayland compositor | [wiki.hyprland.org](https://wiki.hyprland.org) |
 | **rEFInd** | Boot manager documentation | [rodsbooks.com/refind](https://www.rodsbooks.com/refind/) |
 | **Btrfs Wiki** | Btrfs filesystem documentation | [btrfs.wiki.kernel.org](https://btrfs.wiki.kernel.org) |

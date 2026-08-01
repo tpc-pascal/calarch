@@ -77,25 +77,36 @@ generate_refind_config() {
 
     local partuuid=""
     [ -n "$root_dev" ] && partuuid=$(detect_partuuid "$root_dev")
+    if [ -z "$partuuid" ] && [ -f "$mnt/etc/fstab" ]; then
+        partuuid=$(awk '$1 ~ /PARTUUID=/ {gsub(/.*PARTUUID=/,""); gsub(/,.*/,""); print; exit}' "$mnt/etc/fstab" 2>/dev/null || true)
+    fi
+    if [ -z "$partuuid" ] && [ -f "$mnt/boot/refind_linux.conf" ]; then
+        partuuid=$(sed -n 's/.*root=PARTUUID=\([A-Za-z0-9-]*\).*/\1/p' "$mnt/boot/refind_linux.conf" 2>/dev/null | head -1 || true)
+    fi
 
     local kparams
     kparams=$(default_kernel_params)
 
+    local rootflags="" subvol=""
+    if [ -n "$mnt" ]; then
+        subvol=$(findmnt -rn -o OPTIONS "$mnt" 2>/dev/null | sed -n 's/.*subvol=\([^,]*\).*/\1/p' | head -1 || true)
+    else
+        subvol=$(findmnt -rn -o OPTIONS / 2>/dev/null | sed -n 's/.*subvol=\([^,]*\).*/\1/p' | head -1 || true)
+    fi
+    [ -n "$subvol" ] && rootflags="rootflags=subvol=${subvol}"
+
     if [ -z "$partuuid" ]; then
-        log_error ""
-        log_error "KHONG the tu dong detect PARTUUID cua root partition"
-        log_error "Cung cap thu cong: bash start.sh --fix-partuuid /mnt <PARTUUID>"
-        log_error ""
-        exit 1
+        log_warn "Khong detect duoc PARTUUID — dung PLACEHOLDER, can fix: bash start.sh --fix-partuuid $mnt <PARTUUID>"
+        partuuid="PLACEHOLDER"
     fi
 
     local conf_path="$mnt/boot/refind_linux.conf"
     backup_file "$conf_path"
     cat > "$conf_path" << REFIND
 # calarch: refind_linux.conf for rEFInd auto-detection
-"Boot with defaults"  "root=PARTUUID=${partuuid} rw rootflags=subvol=@ ${kparams}"
-"Boot to single-user" "root=PARTUUID=${partuuid} rw rootflags=subvol=@ single ${kparams}"
-"Boot with minimal"   "root=PARTUUID=${partuuid} rw rootflags=subvol=@ ${kparams}"
+"Boot with defaults"  "root=PARTUUID=${partuuid} rw ${rootflags} ${kparams}"
+"Boot to single-user" "root=PARTUUID=${partuuid} rw ${rootflags} single ${kparams}"
+"Boot with minimal"   "root=PARTUUID=${partuuid} rw ${rootflags} ${kparams}"
 REFIND
     log_ok "refind_linux.conf generated at ${conf_path}"
 
