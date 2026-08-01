@@ -1,6 +1,6 @@
 # Hướng dẫn sử dụng calarch
 
-> Phiên bản mới nhất: v1.0.12 — Auto WiFi connect, respect archinstall identity, github pages install url
+> Phiên bản mới nhất: v1.0.13 — Newbie-friendly archinstall: dynamic rootflags, kernel params mọi bootloader, bundle calarch
 
 -----------------------------------------------------------------------
 
@@ -39,24 +39,36 @@ bash <(curl -s https://tpc-pascal.github.io/calarch/install)
 
 | Bước | Mô tả |
 |------|-------|
-| `bootstrap.sh` | Kiểm tra UEFI + network (tự hỏi SSID/password nếu chưa có mạng) → chọn font → mở **archinstall TUI** |
+| `bootstrap.sh` | Kiểm tra UEFI + network (tự hỏi SSID/password nếu chưa có mạng) → chọn font → xem cheat-sheet → mở **archinstall TUI** |
 | Trong archinstall | Bạn tự đặt: disk, partition, filesystem (Btrfs khuyên dùng), bootloader, locale, timezone, **hostname, user, password** |
-| Sau archinstall | Chọn **Exit** (KHÔNG chọn Reboot) |
-| calarch post-install | Tự động: kernel params, console font, rEFInd (nếu dùng), `.bash_login` godmode |
-| Sau reboot | Lần đầu login: tự động clone calarch + chạy post-install + god-mode setup |
+| Sau archinstall | Chọn **Exit** (KHÔNG chọn Reboot); calarch tự kiểm tra kết quả (fstab, user, bootloader) |
+| calarch post-install | Tự động: kernel params (mọi bootloader), console font, rEFInd (nếu dùng), bundle calarch vào `~/calarch`, `.bash_login` godmode |
+| Sau reboot | Lần đầu login: chạy post-install + god-mode setup (dùng bản calarch đã bundle, `git pull` chỉ là fallback) |
+
+> **Cấu hình khuyến nghị trong archinstall (cho newbie):**
+
+| Mục | Chọn | Ghi chú |
+|-----|------|---------|
+| Network | **Enable + NetworkManager** | Bắt buộc trước khi cài, nếu không mirrors không tải được |
+| Disk | Đúng ổ đĩa mình muốn | archinstall cảnh báo xoá toàn bộ dữ liệu |
+| Filesystem | **Btrfs** | calarch tối ưu cho Btrfs; ext4/xfs vẫn cài được (boot bình thường) |
+| Bootloader | **rEFInd** (dễ nhất) hoặc systemd-boot | GRUB cũng được |
+| User | **Phải tạo user thường** (không chỉ root) | Quên → calarch hỏi chạy lại hoặc tạo giúp |
+| Kết thúc | **Exit** (KHÔNG chọn Reboot) | Reboot sẽ thoát luôn khỏi quy trình |
 
 > **Ghi chú:**
 > - Hostname, user và password do **bạn tự đặt trong archinstall** — calarch không ghi đè
 > - Disk cũng do bạn tự chọn trong archinstall
 > - Console font mặc định `ter-132n` (phù hợp HiDPI), có thể chọn font khác khi chạy bootstrap
+> - Kernel params tinh chỉnh (i915, mitigations...) áp dụng cho **mọi bootloader** ngay lúc cài
+> - Nếu chọn filesystem không phải Btrfs, calarch **tự thích nghi** (không còn ép `rootflags=subvol=@`)
 
 -----------------------------------------------------------------------
 
 ### Sau khi reboot lần đầu
 
 1. **Login:** user + password do bạn tự đặt trong archinstall
-2. **Tự động:** `.bash_login` cài git, clone calarch, chạy post-install +
-   god-mode setup (ngầm, không block login) — log tại `/tmp/godmode-setup.log`
+2. **Tự động:** `.bash_login` chạy post-install + god-mode setup (ngầm, không block login) — dùng bản calarch đã bundle sẵn tại `~/calarch`; nếu chưa có mạng sẽ in dòng nhắc, đăng nhập lại để chạy tiếp. Log tại `/tmp/godmode-setup.log`
 3. **Kiểm tra:** `cat /tmp/godmode-setup.log` — nếu có lỗi, login sau tự thử lại
 4. **Hoàn tất:** `cd ~/calarch && bash start.sh`
 
@@ -191,6 +203,26 @@ bash lib/core.sh profile delete my-config   # Xóa
 -----------------------------------------------------------------------
 
 ## Phần 3 — Xử lý sự cố
+
+### Quên tạo user trong archinstall
+
+Bootstrap báo **"CHUA tao user thuong (uid>=1000)"**. Chọn:
+
+- `Y` — chạy lại archinstall để tạo user
+- `c` — để calarch tự tạo user + đặt hostname/locale/timezone giúp
+- `n` — thoát, boot lại và chạy lại
+
+### Chọn nhầm Reboot trong archinstall
+
+Máy sẽ reboot luôn trước khi calarch kịp chạy post-install. Xử lý:
+
+1. Boot lại USB Arch, chạy lại `bash <(curl -s https://tpc-pascal.github.io/calarch/install)`
+2. Hoặc chroot vào hệ thống đã cài và chạy `sudo bash lib/post-install.sh post-install /mnt`
+
+### Filesystem không phải Btrfs
+
+- Hệ thống **vẫn boot bình thường** — calarch tự phát hiện và không ép `rootflags=subvol=@`
+- Kernel params tinh chỉnh (i915, mitigations...) chỉ áp dụng **đủ** khi dùng rEFInd; hệ thống chưa có Btrfs thì một số tính năng (snapshot) bị bỏ qua
 
 ### rEFInd không thấy Arch
 

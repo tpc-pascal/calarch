@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.12"
+VERSION="1.0.13"
 
 # --- Colors ---
 R='\033[0m'; B='\033[1m'
@@ -262,6 +262,14 @@ try_archinstall() {
     echo "║  de calarch tu dong chay post-install.             ║"
     echo "╚══════════════════════════════════════════════════════╝"
     echo ""
+    echo "KHUYEN NGHI trong archinstall (cho newbie):"
+    echo "  • Network     : enable + chon NetworkManager (BAT BUOC truoc khi cai)"
+    echo "  • Disk        : chon dung o (canh bao xoa toan bo du lieu)"
+    echo "  • Filesystem  : Btrfs (calarch toi uu)"
+    echo "  • Bootloader  : rEFInd (de nhat) hoac systemd-boot"
+    echo "  • User        : BAT BUOC tao user thuong (khong chi root)"
+    echo "  • Ket thuc    : chon Exit (KHONG chon Reboot)"
+    echo ""
     echo -n "Nhan Enter de mo archinstall... "
     read -r
 
@@ -299,6 +307,71 @@ try_archinstall() {
         return 0
     fi
     return 1
+}
+
+validate_archinstall_system() {
+    section "VALIDATE: archinstall result"
+
+    if [ ! -f /mnt/etc/fstab ]; then
+        warn "Khong tim thay fstab tai /mnt"
+        echo -n "Ban da chon Exit (khong phai Reboot) trong archinstall? [Y/n]: "
+        local ans
+        read -r ans
+        [[ "$ans" =~ ^[nN] ]] && err "Thoat. Boot lai tu USB va chay lai calarch."
+    fi
+
+    local u
+    u=$(awk -F: '$3>=1000 && $3!=65534 {print $1; exit}' /mnt/etc/passwd 2>/dev/null || echo "")
+    if [ -z "$u" ]; then
+        warn "CHUA tao user thuong (uid>=1000) trong archinstall."
+        echo -n "Chay lai archinstall de tao user [Y], calarch tao giup [c], hay thoat [n]? [Y/c/n]: "
+        local choice
+        read -r choice
+        case "$choice" in
+            [cC])
+                ARCHINSTALL_DONE=0
+                prompt_identity
+                warn "calarch se tao user + dat hostname/locale/timezone giup ban"
+                ;;
+            [nN])
+                err "Thoat. Chay lai: tao user thuong trong archinstall (khong chi root)."
+                ;;
+            *)
+                warn "Chay lai archinstall (lan 2)..."
+                ARCHINSTALL_DONE=0
+                if try_archinstall; then
+                    u=$(awk -F: '$3>=1000 && $3!=65534 {print $1; exit}' /mnt/etc/passwd 2>/dev/null || echo "")
+                    [ -n "$u" ] && { ARCHINSTALL_DONE=1; ok "User thuong: ${u}"; }
+                fi
+                if [ "$ARCHINSTALL_DONE" -eq 0 ]; then
+                    prompt_identity
+                    warn "archinstall lan 2 that bai / khong tao user — calarch se tao user giup ban"
+                fi
+                ;;
+        esac
+        return 0
+    fi
+
+    ok "User thuong: ${u}"
+    ARCHINSTALL_DONE=1
+
+    local bootloader="unknown"
+    if [ -f /mnt/boot/refind_linux.conf ]; then
+        bootloader="rEFInd"
+    elif [ -d /mnt/boot/loader/entries ]; then
+        bootloader="systemd-boot"
+    elif [ -f /mnt/boot/grub/grub.cfg ]; then
+        bootloader="GRUB"
+    fi
+    [ "$bootloader" != "unknown" ] && ok "Bootloader: $bootloader" || warn "Khong detect duoc bootloader — calarch se xu ly sau post-install"
+
+    local fstype
+    fstype=$(findmnt -n -o FSTYPE /mnt 2>/dev/null || echo "")
+    if [ -n "$fstype" ] && [ "$fstype" != "btrfs" ]; then
+        warn "Filesystem: ${fstype} (khong phai Btrfs) — van boot duoc, kernel params tinh chinh chi du voi rEFInd"
+    else
+        [ -n "$fstype" ] && ok "Filesystem: ${fstype}"
+    fi
 }
 
 # ============================================================================
@@ -460,29 +533,44 @@ mkinitcpio -P || echo "WARN: mkinitcpio failed"
 if [ -d /boot/EFI/refind ]; then
     refind-install 2>/dev/null || true
 
+    ROOTFLAGS=""
+    SUBVOL=$(findmnt -rn -o OPTIONS / 2>/dev/null | sed -n 's/.*subvol=\([^,]*\).*/\1/p' | head -1)
+    [ -n "$SUBVOL" ] && ROOTFLAGS="rootflags=subvol=${SUBVOL}"
+
     ROOT_DEV=$(findmnt -n -o SOURCE / 2>/dev/null || echo "")
     PARTUUID=""
     [ -n "$ROOT_DEV" ] && PARTUUID=$(blkid -s PARTUUID -o value "$ROOT_DEV" 2>/dev/null || echo "")
     if [ -n "$PARTUUID" ]; then
         cat > /boot/refind_linux.conf << REFEOF
-"Boot with defaults"  "root=PARTUUID=${PARTUUID} rw rootflags=subvol=@ ${KERNEL_PARAMS}"
-"Boot to single-user" "root=PARTUUID=${PARTUUID} rw rootflags=subvol=@ single ${KERNEL_PARAMS}"
-"Boot with minimal"   "root=PARTUUID=${PARTUUID} rw rootflags=subvol=@ ${KERNEL_PARAMS}"
+"Boot with defaults"  "root=PARTUUID=${PARTUUID} rw ${ROOTFLAGS} ${KERNEL_PARAMS}"
+"Boot to single-user" "root=PARTUUID=${PARTUUID} rw ${ROOTFLAGS} single ${KERNEL_PARAMS}"
+"Boot with minimal"   "root=PARTUUID=${PARTUUID} rw ${ROOTFLAGS} ${KERNEL_PARAMS}"
 REFEOF
     else
         echo "WARN: Cannot detect PARTUUID — rEFInd may not boot without manual fix"
-        cat > /boot/refind_linux.conf << 'REFEOF'
-"Boot with defaults"  "root=PARTUUID=PLACEHOLDER rw rootflags=subvol=@ nowatchdog ..."
-"Boot to single-user" "root=PARTUUID=PLACEHOLDER rw rootflags=subvol=@ single nowatchdog ..."
-"Boot with minimal"   "root=PARTUUID=PLACEHOLDER rw rootflags=subvol=@ nowatchdog ..."
+        cat > /boot/refind_linux.conf << REFEOF
+"Boot with defaults"  "root=PARTUUID=PLACEHOLDER rw ${ROOTFLAGS} ${KERNEL_PARAMS}"
+"Boot to single-user" "root=PARTUUID=PLACEHOLDER rw ${ROOTFLAGS} single ${KERNEL_PARAMS}"
+"Boot with minimal"   "root=PARTUUID=PLACEHOLDER rw ${ROOTFLAGS} ${KERNEL_PARAMS}"
 REFEOF
     fi
 
     if [ -x /usr/local/bin/refind-sync.sh ]; then
         /usr/local/bin/refind-sync.sh 2>/dev/null || true
     fi
+elif [ -d /boot/loader/entries ]; then
+    for f in /boot/loader/entries/*.conf; do
+        [ -f "$f" ] || continue
+        grep -q "nowatchdog" "$f" 2>/dev/null || sed -i "s|^options.*|& ${KERNEL_PARAMS}|" "$f"
+    done
+    echo "systemd-boot detected — kernel params added to loader entries"
+elif [ -f /etc/default/grub ]; then
+    grep -q "nowatchdog" /etc/default/grub 2>/dev/null || \
+        sed -i "s|GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*|& ${KERNEL_PARAMS}|" /etc/default/grub
+    command -v grub-mkconfig &>/dev/null && grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || true
+    echo "GRUB detected — kernel params added to GRUB config"
 else
-    echo "rEFInd not detected — kernel params handled by godmode post-install (systemd-boot/GRUB)"
+    echo "No known bootloader detected — kernel params handled by godmode post-install"
 fi
 
 systemctl enable NetworkManager 2>/dev/null || true
@@ -550,6 +638,11 @@ touch "$RUNNING"
         ping -c 1 -W 1 archlinux.org &>/dev/null && break
         sleep 2
     done
+    if ! ping -c 1 -W 1 archlinux.org &>/dev/null; then
+        echo "[calarch] Chua co mang — ket noi WiFi/ethernet roi dang nhap lai de chay setup tu dong."
+        rm -f "$RUNNING"
+        exit 0
+    fi
     if ! command -v git &>/dev/null; then
         sudo pacman -Syu --noconfirm 2>/dev/null || true
         sudo pacman -S git --noconfirm 2>/dev/null || true
@@ -573,6 +666,13 @@ BASHEOF
         cp -a "$SCRIPT_DIR" "/mnt/home/${USERNAME}/calarch" 2>/dev/null || true
         chown -R "${USERNAME}:${USERNAME}" "/mnt/home/${USERNAME}/calarch" 2>/dev/null || true
         ok "calarch copied to target home"
+    else
+        if git clone --depth=1 https://github.com/tpc-pascal/calarch.git "/mnt/home/${USERNAME}/calarch" 2>/dev/null; then
+            ok "calarch bundled to target home (git clone)"
+        else
+            warn "Khong bundle duoc calarch — se tu clone o lan login dau"
+        fi
+        chown -R "${USERNAME}:${USERNAME}" "/mnt/home/${USERNAME}/calarch" 2>/dev/null || true
     fi
 
     ok "First-boot hooks created"
@@ -678,6 +778,7 @@ if [ "$AUTO" -eq 1 ]; then
 else
     if try_archinstall; then
         ARCHINSTALL_DONE=1
+        validate_archinstall_system
     else
         prompt_disk
         prompt_identity

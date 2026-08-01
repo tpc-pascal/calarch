@@ -14,6 +14,8 @@
 - **Unified TUI** — `bash start.sh` là entry point duy nhất cho tất cả:
   system monitor, settings, drive manager, wallpaper, focus mode, notes, games,
   rEFInd sync, profiles
+- **Newbie-friendly Bootstrap** — Một lệnh cài đặt, auto WiFi connect, cheat-sheet
+  archinstall, tự thích nghi bootloader/filesystem (dynamic rootflags)
 - **Post-Install Setup** — Chạy tự động ở lần boot đầu tiên (live mode),
   không cần ISO chroot
 - **Super Mode Daemon** — Tự động chuyển COOL (powersave) ↔ HOT (schedutil)
@@ -29,6 +31,23 @@
   có pacman hook
 
 ------------------------------------------------------------------------
+
+## Cài đặt nhanh
+
+Boot Arch USB (UEFI) rồi chạy một lệnh:
+
+```bash
+bash <(curl -s https://tpc-pascal.github.io/calarch/install)
+```
+
+Script tự kết nối mạng (hỏi SSID/password nếu chưa có) → archinstall TUI (bạn tự đặt
+disk, hostname, user, bootloader) → chọn Exit → calarch post-install tự động.
+
+> **Fallback:** `bash <(curl -s https://raw.githubusercontent.com/tpc-pascal/calarch/main/bootstrap.sh)`
+>
+> **Verify checksum:** `curl -sO https://tpc-pascal.github.io/calarch/install && echo "$(curl -s https://tpc-pascal.github.io/calarch/install.sha256)  install" | sha256sum -c - && bash install`
+
+-----------------------------------------------------------------------
 
 ## Cấu trúc thư mục
 
