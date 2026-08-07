@@ -268,13 +268,17 @@ get_kernel_params() {
     [ ! -f "$config_file" ] && config_file="$HOME/calarch/calarch.conf"
     if [ ! -f "$config_file" ]; then
         local home_dirs
-        home_dirs=$(ls -d "$mnt/home"/*/calarch/calarch.conf 2>/dev/null | head -1)
+        home_dirs=$(ls -d "$mnt/home"/*/calarch/calarch.conf 2>/dev/null | head -1 || true)
         [ -n "$home_dirs" ] && config_file="$home_dirs"
     fi
 
     if [ -f "$config_file" ]; then
         local params
-        params=$(grep -E '^KERNEL_PARAMS=' "$config_file" 2>/dev/null | head -1 | cut -d'=' -f2-)
+        params=$(grep -E '^KERNEL_PARAMS=' "$config_file" 2>/dev/null | head -1 | cut -d'=' -f2- || true)
+        # Bo cap ngoac kep/don (config duoc ghi dang KERNEL_PARAMS="..." hoac '...') va trim
+        params="${params#\"}"; params="${params%\"}"
+        params="${params#\'}"; params="${params%\'}"
+        params=$(printf '%s' "$params" | xargs)
         if [ -n "$params" ]; then
             echo "$params"
             return
@@ -357,8 +361,8 @@ sync_to_esp() {
             continue
         fi
 
-        cp -f "$kernel" "$kernel_dst"
-        cp -f "$initrd" "$initrd_dst"
+        cp -f "$kernel" "$kernel_dst" || { log_e "Khong the copy kernel $name len ESP"; return 1; }
+        cp -f "$initrd" "$initrd_dst" || { log_e "Khong the copy initramfs $name len ESP"; return 1; }
 
         log_ok "Synced kernel $name"
 
@@ -438,6 +442,12 @@ manage_refind_entry() {
     local new_content=""
 
     if echo "$conf_content" | grep -qF "$marker_begin"; then
+        # An toan: neu thieu marker end (config hu hong), khong rewrite
+        # de tranh mat cac entry khac nam sau block calarch.
+        if ! echo "$conf_content" | grep -qF "$marker_end"; then
+            log_e "Marker end ($marker_end) thieu trong $refind_conf — bo qua rewrite de tranh mat data"
+            return 1
+        fi
         new_content=$(echo "$conf_content" | awk -v m="$marker_begin" 'BEGIN{f=0} index($0,m){f=1;next} !f{print}')
         [ -n "$new_content" ] && new_content="$new_content\n"
         new_content="$new_content$entry_text"
@@ -450,7 +460,18 @@ manage_refind_entry() {
         new_content="$new_content$entry_text"
     fi
 
-    printf '%b' "$new_content" > "$refind_conf"
+    # Ghi atomic: ghi ra tmp truoc, mv vao sau de tranh refind.conf bi cat doan
+    local tmp_conf="$refind_conf.tmp.$$"
+    if ! printf '%b' "$new_content" > "$tmp_conf"; then
+        rm -f "$tmp_conf" 2>/dev/null || true
+        log_e "Khong the ghi $refind_conf"
+        return 1
+    fi
+    if ! mv -f "$tmp_conf" "$refind_conf"; then
+        rm -f "$tmp_conf" 2>/dev/null || true
+        log_e "Khong the thay $refind_conf"
+        return 1
+    fi
     log_ok "rEFInd entry updated at $refind_conf"
 }
 
@@ -535,11 +556,15 @@ check_status() {
     for f in "$boot_dir"/vmlinuz-*; do
         [ -f "$f" ] || continue
         found=1
-        local base base_name initrd_size
+        local base base_name initrd_size="?"
         base=$(basename "$f")
         base_name="${base#vmlinuz-}"
         local initrd="$boot_dir/initramfs-$base_name.img"
-        [ -f "$initrd" ] && initrd_size=$(stat -c%s "$initrd" 2>/dev/null || echo "?") || initrd="(missing)"
+        if [ -f "$initrd" ]; then
+            initrd_size=$(stat -c%s "$initrd" 2>/dev/null || echo "?")
+        else
+            initrd="(missing)"
+        fi
         echo "  vmlinuz: $base  ($(stat -c%s "$f" 2>/dev/null || echo "?") bytes)"
         echo "  initrd:  initramfs-$base_name.img  ($initrd_size bytes)"
     done
@@ -661,6 +686,9 @@ main() {
     if [ -z "$esp_mnt" ]; then
         return 1
     fi
+    # DAT TRAP: dam bao unmount ESP khi thoat (ke ca loi giua chung)
+    ESP_MOUNTED="$esp_mnt"
+    trap 'unmount_esp_temp "$ESP_MOUNTED" 2>/dev/null || true' EXIT
     log_i "ESP mounted at: $esp_mnt"
 
     local partuuid
@@ -678,7 +706,7 @@ main() {
     boot_dev=$(findmnt -n -o SOURCE "$boot_dir" 2>/dev/null || true)
     boot_fstype=$(findmnt -n -o FSTYPE "$boot_dir" 2>/dev/null || true)
     boot_fstype=$(echo "$boot_fstype" | tr '[:upper:]' '[:lower:]')
-    if [ "$boot_fstype" = "vfat" ] || [ "$boot_fstype" = "fat" ]; then
+    if [[ "$boot_fstype" == "vfat" || "$boot_fstype" == "fat" || "$boot_fstype" == "fat32" ]]; then
         log_i "/boot la FAT32 (ESP) — kernel da san tren ESP, bo qua copy"
     else
         log_i "Syncing kernel(s) to ESP..."
@@ -686,7 +714,7 @@ main() {
     fi
 
     local boot_is_esp=0
-    if [ "$boot_fstype" = "vfat" ] || [ "$boot_fstype" = "fat32" ]; then
+    if [[ "$boot_fstype" == "vfat" || "$boot_fstype" == "fat" || "$boot_fstype" == "fat32" ]]; then
         boot_is_esp=1
     fi
 

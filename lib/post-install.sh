@@ -64,7 +64,14 @@ detect_partuuid() {
 }
 
 default_kernel_params() {
-    echo "${KERNEL_PARAMS:-nowatchdog processor.max_cstate=4 intel_idle.max_cstate=4 i915.enable_fbc=1 i915.enable_psr=1 i915.enable_rc6=1 i915.fastboot=1 mitigations=off pcie_aspm=force}"
+    local mnt="${1:-}"
+    local kparams="${KERNEL_PARAMS:-}"
+    if [ -z "$kparams" ] && [ -n "$mnt" ] && [ -f "$mnt/calarch.conf" ]; then
+        kparams=$(grep -E '^KERNEL_PARAMS=' "$mnt/calarch.conf" 2>/dev/null | head -1 | cut -d'=' -f2- || true)
+        kparams="${kparams#\"}"; kparams="${kparams%\"}"
+        kparams="${kparams#\'}"; kparams="${kparams%\'}"
+    fi
+    echo "${kparams:-nowatchdog processor.max_cstate=4 intel_idle.max_cstate=4 i915.enable_fbc=1 i915.enable_psr=1 i915.enable_rc6=1 i915.fastboot=1 mitigations=off pcie_aspm=force}"
 }
 
 generate_refind_config() {
@@ -172,7 +179,7 @@ post_install() {
                 local top_mnt
                 top_mnt=$(findmnt -n -o TARGET --source "$root_dev" 2>/dev/null | head -1 || echo "${mnt:-/}")
                 btrfs subvolume create "$top_mnt/@snapshots" 2>/dev/null || log_warn "Cannot create @snapshots subvolume"
-                mkdir -p "${mnt:-/}.snapshots" 2>/dev/null || true
+                mkdir -p "${mnt:-/}/.snapshots" 2>/dev/null || true
                 local uuid
                 uuid=$(blkid -s UUID -o value "$root_dev" 2>/dev/null || echo "")
                 if [ -n "$uuid" ] && ! grep -q "\.snapshots" "${mnt:-/}etc/fstab" 2>/dev/null; then
@@ -191,7 +198,7 @@ post_install() {
     [ -n "$mnt" ] && patch_fstab_compression "$mnt"
 
     local kparams
-    kparams=$(default_kernel_params)
+    kparams=$(default_kernel_params "$mnt")
 
     if [ -d "${mnt:-/}boot/loader/entries" ]; then
         for f in "${mnt:-/}boot/loader/entries/"*.conf; do
@@ -209,6 +216,12 @@ post_install() {
             backup_file "${mnt:-/}etc/default/grub"
             sed -i "s|GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*|& $kparams|" "${mnt:-/}etc/default/grub"
             log_ok "Added kernel params to GRUB config"
+        fi
+        # E7: sinh lai grub.cfg de ap dung kparams (chi khi co grub-mkconfig)
+        if [ -z "$mnt" ] && command -v grub-mkconfig &>/dev/null; then
+            grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 && log_ok "grub.cfg regenerated" || log_warn "grub-mkconfig failed (non-fatal)"
+        elif [ -n "$mnt" ] && command -v arch-chroot &>/dev/null && [ -x "$mnt/usr/sbin/grub-mkconfig" ]; then
+            arch-chroot "$mnt" grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 && log_ok "grub.cfg regenerated" || log_warn "grub-mkconfig failed (non-fatal)"
         fi
     fi
 
@@ -258,6 +271,7 @@ post_install() {
             local chroot_path
             chroot_path="${user_home#$mnt}"
             [ -z "$chroot_path" ] && chroot_path="/root"
+            [ "${chroot_path:0:1}" != "/" ] && chroot_path="/$chroot_path"
             arch-chroot "$mnt" chown -R "${username}:${username}" "$chroot_path/calarch" 2>/dev/null || true
         fi
         if command -v arch-chroot &>/dev/null; then
@@ -303,26 +317,34 @@ LOG="/tmp/godmode-setup.log"
 [ -f "$RUNNING" ] && exit 0
 
 touch "$RUNNING"
-(
-    for i in $(seq 1 15); do
-        ping -c 1 -W 1 archlinux.org &>/dev/null && break
-        sleep 2
-    done
-    command -v git &>/dev/null || sudo pacman -S git --noconfirm &>/dev/null || true
-    if [ ! -d ~/calarch ]; then
-        git clone --depth=1 https://github.com/tpc-pascal/calarch.git ~/calarch 2>/dev/null \
-            || git clone --depth=1 https://github.com/tpc-pascal/calarch.git /tmp/calarch 2>/dev/null || true
-    fi
-    if [ -d ~/calarch ]; then
-        sudo bash ~/calarch/lib/post-install.sh post-install 2>/dev/null
-        if cd ~/calarch 2>/dev/null && bash start.sh -m first-boot; then
-            rm -f "$FLAG"
-            touch "$DONE"
-            echo -e "\033[1;32mGod-Mode setup complete! System ready.\033[0m"
-        fi
-    fi
+for i in $(seq 1 15); do
+    ping -c 1 -W 1 archlinux.org &>/dev/null && break
+    sleep 2
+done
+if ! ping -c 1 -W 1 archlinux.org &>/dev/null && [ ! -d ~/calarch ]; then
+    echo "[calarch] Chua co mang — ket noi WiFi/ethernet roi dang nhap lai de chay setup tu dong."
     rm -f "$RUNNING"
-) &>/tmp/godmode-setup.log &
+    exit 0
+fi
+command -v git &>/dev/null || sudo pacman -S git --noconfirm &>/dev/null || true
+if [ ! -d ~/calarch ]; then
+    git clone --depth=1 https://github.com/tpc-pascal/calarch.git ~/calarch 2>/dev/null \
+        || git clone --depth=1 https://github.com/tpc-pascal/calarch.git /tmp/calarch 2>/dev/null || true
+fi
+if [ -d ~/calarch ]; then
+    echo ">>> Dang chay post-install (mot lan)..."
+    sudo bash ~/calarch/lib/post-install.sh post-install >> "$LOG" 2>&1 || true
+    if bash ~/calarch/lib/godmode-setup.sh; then
+        rm -f "$FLAG"
+        touch "$DONE"
+        echo -e "\033[1;32mGod-Mode setup complete! System ready.\033[0m"
+    else
+        echo -e "\033[1;33mGod-Mode setup chua hoan tat (co buoc loi). Se thu lai vao lan dang nhap sau.\033[0m"
+        rm -f "$RUNNING"
+        exit 0
+    fi
+fi
+rm -f "$RUNNING"
 BASHEOF
     if [ "$live_mode" -eq 1 ]; then
         chown "${username}:${username}" "$bashlogin" 2>/dev/null || true
@@ -382,7 +404,8 @@ fix_partuuid() {
         log_error "Chay lai post-install truoc: bash lib/post-install.sh $mnt"
         exit 1
     }
-    awk -v pu="$new_partuuid" '{gsub(/PLACEHOLDER_PARTUUID/, pu); gsub(/PARTUUID=[ \t]*$/, "PARTUUID=" pu)}1' "$conf" > "${conf}.tmp" && mv "${conf}.tmp" "$conf"
+    awk -v pu="$new_partuuid" '{gsub(/PLACEHOLDER/, pu); gsub(/PLACEHOLDER_PARTUUID/, pu); gsub(/PARTUUID=[ \t]*$/, "PARTUUID=" pu)}1' "$conf" > "${conf}.tmp" \
+        && mv -f "${conf}.tmp" "$conf" || { rm -f "${conf}.tmp"; log_error "Khong the cap nhat $conf"; exit 1; }
     log_ok "Da cap nhat PARTUUID trong $conf"
     cat "$conf"
 }

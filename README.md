@@ -18,6 +18,9 @@
   archinstall, tự thích nghi bootloader/filesystem (dynamic rootflags)
 - **Post-Install Setup** — Chạy tự động ở lần boot đầu tiên (live mode),
   không cần ISO chroot
+- **God-Mode Guided Setup** — Lần login đầu tự mở checklist 8 bước: yay, Hyprland
+  JaKooLit, ZRAM 8GB, undervolt, thermald+TLP, Super-Mode & Eco daemon, tweaks,
+  ananicy-cpp — idempotent, chạy lại không lặp
 - **Super Mode Daemon** — Tự động chuyển COOL (powersave) ↔ HOT (schedutil)
   theo CPU load
 - **Dynamic CPU Affinity** — Active window → Core 0,1; Background → Core 2,3
@@ -28,7 +31,13 @@
   undo history
 - **Config Center** — Mọi tham số tập trung tại một file `calarch.conf`
 - **rEFInd ESP Kernel Sync** — Tự động copy kernel + initramfs ra ESP (FAT32),
-  có pacman hook
+  có pacman hook, hỗ trợ UKI mode
+- **Terminal Media** — YouTube (yt-dlp + mpv), Anime từ Nyaa.si (magnet phát qua
+  web-torrent engine `webtorrent-cli` dưới mpv — giữ mpv cho direct stream)
+- **App Setup** — Spotify + Spicetify (adblock), Neovim + LazyVim (LSP),
+  Rofi launcher, Firefox (vertical tabs + privacy), Emacs + Org-mode
+- **Web Dashboard** — `python3 lib/web.sh` tại `localhost:8765`, quản lý config
+  + trạng thái qua API core.sh
 
 ------------------------------------------------------------------------
 
@@ -57,25 +66,42 @@ calarch/
 ├── bootstrap.sh                 Bootstrap installer → archinstall TUI → post-install
 ├── start.sh                     Unified TUI — entry point duy nhất
 ├── make.sh                      Builder → calarch-v*.run
-├── profiles/                    Preset configs
+├── profiles/                    Preset: default, performance, battery, ultrafocus
 ├── web/                         Web dashboard (Chart.js)
+├── tests/                       Bats test suite (tests/run.sh)
 ├── lib/
 │   ├── tui.sh                   TUI engine (gum)
-│   ├── post-install.sh          Post-install setup
-│   ├── system.sh                System monitor
-│   ├── settings.sh              Settings panel
-│   ├── mount.sh                 Drive manager
-│   ├── wallpaper.sh             Wallpaper changer
-│   ├── focus.sh                 Pomodoro + blocker
-│   ├── notes.sh                 Notes manager
-│   ├── games.sh                 Games launcher
-│   ├── refind-sync.sh           rEFInd ESP kernel sync
-│   ├── profiles.sh              Profile manager
-│   ├── safety.sh                Safety engine
-│   ├── super-mode.sh            Super Mode daemon
 │   ├── core.sh                  Config I/O + Safety + Profile
-│   ├── dashboard.sh             Legacy dashboard
-│   └── ... (các script khác)
+│   ├── config-load.sh           Config loader cho các script con
+│   ├── post-install.sh          Post-install setup (+ fix-partuuid, refind)
+│   ├── godmode-setup.sh         God-Mode guided setup (8 bước, idempotent)
+│   ├── godmode-cleanup.sh       Auto-maintenance (journal, cache, snapper)
+│   ├── godmode-recovery.sh      Recovery & fallback handler
+│   ├── system.sh                System monitor
+│   ├── settings.sh              Settings panel (toggle services/apps)
+│   ├── safety.sh                Safety engine UI
+│   ├── dashboard.sh             Legacy dashboard (web + TUI)
+│   ├── web.sh                   Web dashboard server (python, localhost:8765)
+│   ├── super-mode.sh            Super Mode daemon
+│   ├── hyprland-event-monitor.sh Dynamic CPU affinity engine (Hyprland)
+│   ├── mount.sh                 Drive manager
+│   ├── wallpaper.sh             Wallpaper changer (chafa preview)
+│   ├── focus.sh                 Pomodoro + website blocker
+│   ├── notes.sh                 Obsidian vault manager
+│   ├── games.sh                 Games launcher
+│   ├── refind-sync.sh           rEFInd ESP kernel sync (+ hook, UKI mode)
+│   ├── anime.sh                 Anime player (Nyaa.si + web-torrent engine)
+│   ├── yt-video.sh              Terminal YouTube player (yt-dlp + mpv)
+│   ├── spotify.sh               Spotify + Spicetify
+│   ├── neovim.sh                Neovim + LazyVim setup
+│   ├── emacs.sh                 Emacs + Org-mode setup
+│   ├── firefox.sh               Firefox config (vertical tabs + privacy)
+│   ├── launcher.sh              Rofi Ultrafocus launcher
+│   ├── kitty-ultrafocus.sh      Kitty terminal config
+│   ├── cf-xz6-rotator.sh        Screen rotation (CF-XZ6)
+│   ├── cfxz6-stylus-calibrate.sh Stylus calibration (CF-XZ6)
+│   ├── ultrafocus-install.sh     App installer bundle
+│   └── profiles.sh              Profile manager
 ├── assets/logo.svg
 ├── .github/workflows/
 │   ├── release.yml
@@ -97,7 +123,8 @@ calarch/
 | Shell   | Bash 5.0+, `set -euo pipefail`                      |
 | Desktop | Hyprland (Wayland) via JaKooLit                     |
 | TUI     | gum (charmbracelet) — modern terminal UI            |
-| Web     | Python + Chart.js                                   |
+| Web     | Python + Chart.js (localhost:8765)                  |
+| Media   | mpv, yt-dlp, webtorrent-cli                          |
 | CPU     | taskset, chrt, ananicy-cpp                          |
 | Thermal | thermald, TLP, intel-undervolt                      |
 | Storage | Btrfs (zstd:3, noatime), ZRAM 8GB (zstd)            |

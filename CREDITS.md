@@ -12,6 +12,9 @@
 | [TLP](https://linrunner.de/tlp/) | Power management |
 | [JaKooLit](https://github.com/JaKooLit) | Hyprland dotfiles & installer scripts |
 | [chafa](https://hpjansson.org/chafa/) | Terminal image preview |
+| [mpv](https://mpv.io/) | Media player (video/audio streaming) |
+| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | YouTube/media downloader & player backend |
+| [webtorrent-cli](https://github.com/webtorrent/webtorrent-cli) | Web-torrent engine (anime magnet → mpv) |
 | [Ollama](https://ollama.ai/) | Local LLM |
 | [OpenCode](https://opencode.ai/) | AI coding assistant |
 

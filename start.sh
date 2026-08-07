@@ -8,7 +8,8 @@ CONFIG_FILE="$SCRIPT_DIR/calarch.conf"
 
 # shellcheck source=/dev/null
 if [ -f "$CONFIG_FILE" ]; then
-    source "$CONFIG_FILE" 2>/dev/null || { echo -e "[EE] Config parse error in $CONFIG_FILE"; exit 1; }
+    source "$LIB_DIR/config-load.sh" 2>/dev/null || true
+    calarch_load_config "$CONFIG_FILE" 2>/dev/null || true
 fi
 
 if ! command -v gum &>/dev/null; then
@@ -38,8 +39,9 @@ log_e()  { echo -e "${RED}[EE]${R} $*"; }
 
 has() { command -v "$1" &>/dev/null; }
 
-# Called by post-install.sh godmode flow. Signals completion (exit 0).
+# Called by .bash_login godmode flow. Runs guided first-boot setup.
 first_boot_mode() {
+    bash "$LIB_DIR/godmode-setup.sh" "$@"
     exit 0
 }
 
@@ -63,6 +65,7 @@ main_menu() {
             "8"  "rEFInd Sync — dong bo kernel ra ESP" \
             "9"  "Profiles — luu/nap cau hinh" \
             "P"  "Post-Install Setup — chay sau khi cai Arch (1 lan)" \
+            "G"  "God-Mode Setup — yay, Hyprland, ZRAM, undervolt, thermal" \
             "S"  "Safety Engine — grace period, undo, history" \
             "Q"  "Thoat") || break
         [ -z "$c" ] && break
@@ -87,6 +90,7 @@ main_menu() {
                 bash "$LIB_DIR/post-install.sh" post-install "$pmnt"
                 read -r -p "Enter de tiep..."
                 ;;
+            G|g) bash "$LIB_DIR/godmode-setup.sh" || log_w "godmode-setup.sh failed" ;;
             S|s) bash "$LIB_DIR/safety.sh" || log_w "safety.sh failed" ;;
             Q|q) clear; exit 0 ;;
         esac
@@ -96,12 +100,12 @@ main_menu() {
 # --- CLI entry ---
 case "${1:-}" in
     --version|-v)
-        echo "calarch 1.0.13"
+        echo "calarch 1.0.14"
         exit 0
         ;;
     -m|--mode)
         case "${2:-}" in
-            first-boot) first_boot_mode ;;
+            first-boot) shift 2; first_boot_mode "$@" ;;
             *) echo "Unknown mode: $2"; exit 1 ;;
         esac
         ;;

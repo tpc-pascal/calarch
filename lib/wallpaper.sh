@@ -15,8 +15,10 @@ log_e()  { echo -e "${RED}[EE]${R} $*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/tui.sh"
+CORE="$SCRIPT_DIR/core.sh"
 CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
-[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+source "$SCRIPT_DIR/config-load.sh"
+calarch_load_config "$CONFIG_FILE"
 
 WALLPAPER_DIR="${WALLPAPER_DIR:-$HOME/Pictures/wallpapers}"
 WALLPAPER_ENGINE="${WALLPAPER_ENGINE:-hyprpaper}"
@@ -229,11 +231,7 @@ set_wallpaper() {
             esac
             if $ok && [ -n "$detected_engine" ] && [ -f "$CONFIG_FILE" ]; then
                 WALLPAPER_ENGINE="$detected_engine"
-                if grep -qE '^WALLPAPER_ENGINE=' "$CONFIG_FILE"; then
-                    sed -i "s|^WALLPAPER_ENGINE=.*|WALLPAPER_ENGINE=${detected_engine}|" "$CONFIG_FILE"
-                else
-                    echo "WALLPAPER_ENGINE=${detected_engine}" >> "$CONFIG_FILE"
-                fi
+                "$CORE" set WALLPAPER_ENGINE "$detected_engine" 2>/dev/null || true
             fi
             ;;
     esac
@@ -327,14 +325,7 @@ main_menu() {
                     "feh"       "X11 (legacy)") || continue
                 if [ -n "$eng" ]; then
                     WALLPAPER_ENGINE="$eng"
-                    # Save to config
-                    if [ -f "$CONFIG_FILE" ]; then
-                        if grep -qE '^WALLPAPER_ENGINE=' "$CONFIG_FILE"; then
-                            sed -i "s|^WALLPAPER_ENGINE=.*|WALLPAPER_ENGINE=${eng}|" "$CONFIG_FILE"
-                        else
-                            echo "WALLPAPER_ENGINE=${eng}" >> "$CONFIG_FILE"
-                        fi
-                    fi
+                    "$CORE" set WALLPAPER_ENGINE "$eng" 2>/dev/null || true
                     tui_msg "ENGINE" "Engine changed to: ${eng}" 6 40
                 fi
                 ;;

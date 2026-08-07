@@ -23,11 +23,11 @@ if command -v xsetwacom &>/dev/null; then
         dev_name=$(echo "$device" | awk -F':' '{print $1}')
         
         # Kich hoat TabletPCButton (palm rejection)
-        xsetwacom set "$dev_name" TabletPCButton on 2>/dev/null
+        xsetwacom set "$dev_name" TabletPCButton on 2>/dev/null || true
         log_calibrate "Palm rejection ON for $dev_name"
         
         # Map to man hinh eDP-1
-        xsetwacom set "$dev_name" MapToOutput eDP-1 2>/dev/null
+        xsetwacom set "$dev_name" MapToOutput eDP-1 2>/dev/null || true
         log_calibrate "Mapped $dev_name to eDP-1"
     done
 elif [ -n "${WAYLAND_DISPLAY:-}" ] || command -v libinput-list-devices &>/dev/null; then
@@ -52,7 +52,7 @@ if [ ! -f "$XOURNAL_CONFIG" ]; then
     <property name="ignoreTouch" value="true"/>
     <property name="zoomGesturesEnabled" value="false"/>
     <property name="drawingDevice" value="Stylus"/>
-    <property name="inputSystem" value="WIN32"/>
+    <property name="inputSystem" value="LINUX"/>
     <property name="penFilterIgnoreTimes" value="150"/>
     <property name="penFlickDistance" value="15"/>
     <property name="penFlickSuppressTimeout" value="500"/>

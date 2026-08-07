@@ -10,12 +10,14 @@ RED='\033[0;31m'; GR='\033[0;32m'; YEL='\033[1;33m'; CY='\033[0;36m'; MG='\033[0
 
 log_i() { echo -e "${CY}>>>${R} $*"; }
 log_ok() { echo -e "${GR}[OK]${R} $*"; }
+log_w()  { echo -e "${YEL}[!!]${R} $*"; }
 log_e()  { echo -e "${RED}[EE]${R} $*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/tui.sh"
 CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
-[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+source "$SCRIPT_DIR/config-load.sh"
+calarch_load_config "$CONFIG_FILE"
 
 install_spotify() {
     if command -v spotify &>/dev/null; then

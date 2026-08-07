@@ -15,14 +15,26 @@ PKG_BEFORE="/tmp/godmode-pkg-before.txt"
 PKG_AFTER="/tmp/godmode-pkg-after.txt"
 echo "=== GodMode Recovery $(date) ===" > "$LOG_FILE"
 
-log_i() { echo -e "${CYAN}>>>${NC} $*" | tee -a "$LOG_FILE"; }
 CYAN='\033[0;36m'; RED='\033[0;31m'; GR='\033[0;32m'; YEL='\033[1;33m'; NC='\033[0m'
+
+log_i() { echo -e "${CYAN}>>>${NC} $*" | tee -a "$LOG_FILE"; }
 
 # --- Load capability flags (neu co) ---
 load_caps() {
     if [ -f "$CAP_FILE" ]; then
-        source "$CAP_FILE"
-        log_i "Loaded capability flags from ${CAP_FILE}"
+        # An toan: /tmp world-writable — chi source file do chinh user so huu
+        # va khong co group/other write bit (tranh RCE khi chay root).
+        local owner_id uid_val
+        owner_id=$(stat -c '%u' "$CAP_FILE" 2>/dev/null || echo "-1")
+        uid_val=$(id -u 2>/dev/null || echo "-1")
+        if [ "$owner_id" = "$uid_val" ] && ! find "$CAP_FILE" -perm /022 -print -quit 2>/dev/null | grep -q .; then
+            source "$CAP_FILE"
+            log_i "Loaded capability flags from ${CAP_FILE}"
+        else
+            log_i "Capability file ${CAP_FILE} khong an toan (owner=${owner_id}) — bo qua, probing..."
+            CAP_NETWORK=0
+            ping -c 2 -W 3 archlinux.org &>/dev/null && CAP_NETWORK=1
+        fi
     else
         log_i "No capability file found — probing..."
         CAP_NETWORK=0
@@ -62,7 +74,9 @@ recover_aur() {
     fi
     if command -v paru &>/dev/null; then
         log_i "paru found — creating yay alias"
-        echo 'alias yay=paru' >> "$HOME/.bashrc"
+        if ! grep -qF "alias yay=paru" "$HOME/.bashrc" 2>/dev/null; then
+            echo 'alias yay=paru' >> "$HOME/.bashrc"
+        fi
         alias yay=paru
         echo "OK (paru)" >> "$REPORT_FILE"
         return 0
@@ -70,12 +84,18 @@ recover_aur() {
     [ "$CAP_NETWORK" -eq 0 ] && { log_i "Offline — cannot install AUR helper"; echo "SKIP (offline)" >> "$REPORT_FILE"; return 1; }
     log_i "No AUR helper. Installing yay-bin..."
     local tmpdir
-    tmpdir=$(mktemp -d)
-    cd "$tmpdir" || return 1
+    tmpdir=$(mktemp -d) || return 1
+    if ! cd "$tmpdir" 2>/dev/null; then rm -rf "$tmpdir"; return 1; fi
     sudo pacman -S --noconfirm --needed base-devel git 2>/dev/null || true
-    git clone --depth=1 https://aur.archlinux.org/yay-bin.git 2>/dev/null || return 1
-    cd yay-bin && makepkg -si --noconfirm 2>/dev/null || return 1
-    cd ~ && rm -rf "$tmpdir"
+    if ! git clone --depth=1 https://aur.archlinux.org/yay-bin.git 2>/dev/null; then
+        cd ~ 2>/dev/null && rm -rf "$tmpdir"
+        return 1
+    fi
+    if ! (cd yay-bin && makepkg -si --noconfirm 2>/dev/null); then
+        cd ~ 2>/dev/null && rm -rf "$tmpdir"
+        return 1
+    fi
+    cd ~ 2>/dev/null && rm -rf "$tmpdir"
     log_i "yay-bin installed"
     echo "OK" >> "$REPORT_FILE"
 }

@@ -9,7 +9,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
-[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+source "$SCRIPT_DIR/config-load.sh"
+calarch_load_config "$CONFIG_FILE"
 
 PID_FILE="/tmp/hyprland-event-monitor.pid"
 
@@ -48,11 +49,13 @@ assign_pid_resources() {
     taskset -pc "$cores" "$pid" 2>/dev/null
 
     if [ "$role" = "active" ]; then
-        chrt -"${ACTIVE_SCHED:-r}" -p "${ACTIVE_PRIORITY:-50}" "$pid" 2>/dev/null
-        ionice -c 2 -n "${ACTIVE_IONICE:-0}" -p "$pid" 2>/dev/null
+        # SCHED_RR can root (CAP_SYS_NICE); neu khong du quyen → fallback SCHED_OTHER
+        chrt -"${ACTIVE_SCHED:-r}" -p "${ACTIVE_PRIORITY:-50}" "$pid" 2>/dev/null || \
+            chrt -o -p 0 "$pid" 2>/dev/null || true
+        ionice -c 2 -n "${ACTIVE_IONICE:-0}" -p "$pid" 2>/dev/null || true
     else
-        chrt -o -p 0 "$pid" 2>/dev/null
-        ionice -c 2 -n "${BG_IONICE:-5}" -p "$pid" 2>/dev/null
+        chrt -o -p 0 "$pid" 2>/dev/null || true
+        ionice -c 2 -n "${BG_IONICE:-5}" -p "$pid" 2>/dev/null || true
     fi
 
     log_affinity "$pid" "${role}: cores=${cores}"

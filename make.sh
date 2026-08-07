@@ -13,8 +13,8 @@ VERSION="${VERSION:-1.0}"
 NAME="calarch"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 OUTPUT_FILE="$SCRIPT_DIR/${NAME}-v${VERSION}.run"
+WORKDIR="$(mktemp -d)" || { echo "Cannot create temp dir"; exit 1; }
 trap 'rm -rf "$WORKDIR"' EXIT
-WORKDIR=$(mktemp -d)
 
 echo "=== Making calarch v${VERSION} ==="
 cd "$SCRIPT_DIR"
@@ -198,11 +198,11 @@ main() {
             ;;
         refind-sync|--refind-sync)
             echo "  Mode: REFIND KERNEL SYNC"
-            exec bash lib/refind-sync.sh --mnt "\${@:2}"
+            exec bash lib/refind-sync.sh --mnt "\${2:-}" "\${@:3}"
             ;;
         fix-partuuid|--fix-partuuid)
             echo "  Mode: FIX PARTUUID"
-            exec bash lib/post-install.sh fix-partuuid "\${@:2}" "\${3:-}"
+            exec bash lib/post-install.sh fix-partuuid "\${2:-}" "\${3:-}" "\${@:4}"
             ;;
         help|--help|-h)
             echo "Usage: \$0 [mode]"
@@ -238,13 +238,13 @@ chmod +x "$OUTPUT_FILE"
 
 final_size=$(wc -c < "$OUTPUT_FILE")
 echo ""
-echo "=== Built: $(basename $OUTPUT_FILE) ==="
+echo "=== Built: $(basename "$OUTPUT_FILE") ==="
 echo "  Size: $(( final_size / 1024 )) KB"
 echo "  SHA256: ${SHA256}"
 
 echo ""
 echo "=== Done ==="
-echo "  Output: $(basename $OUTPUT_FILE)"
+echo "  Output: $(basename "$OUTPUT_FILE")"
 echo "  Size:   $(( final_size / 1024 )) KB"
-echo "  Usage:  ./$(basename $OUTPUT_FILE) help"
+echo "  Usage:  ./$(basename "$OUTPUT_FILE") help"
 echo ""

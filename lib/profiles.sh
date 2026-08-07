@@ -3,6 +3,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CORE="$SCRIPT_DIR/core.sh"
 PROFILE_DIR="$SCRIPT_DIR/../profiles"
+source "$SCRIPT_DIR/tui.sh"
 
 has() { command -v "$1" &>/dev/null; }
 
@@ -38,7 +39,7 @@ profiles_menu() {
             load)
                 local prof items=()
                 shopt -s nullglob
-                for f in "$PROFILE_DIR"/*.conf; do items+=("$(basename "$f" .conf)" ""); done
+                for f in "$PROFILE_DIR"/*.conf; do items+=("$(basename "$f" .conf)" "$(basename "$f" .conf)"); done
                 shopt -u nullglob
                 [ ${#items[@]} -eq 0 ] && { tui_msg "PROFILES" "Khong co profile nao" 6 30; continue; }
                 prof=$(tui_menu "LOAD PROFILE" "Chon profile:" 14 50 4 "${items[@]}") || continue

@@ -1,6 +1,6 @@
 # Hướng dẫn sử dụng calarch
 
-> Phiên bản mới nhất: v1.0.13 — Newbie-friendly archinstall: dynamic rootflags, kernel params mọi bootloader, bundle calarch
+> Phiên bản mới nhất: v1.0.14 — God-Mode guided setup: yay, Hyprland, ZRAM, undervolt, thermal, super-mode
 
 -----------------------------------------------------------------------
 
@@ -43,7 +43,7 @@ bash <(curl -s https://tpc-pascal.github.io/calarch/install)
 | Trong archinstall | Bạn tự đặt: disk, partition, filesystem (Btrfs khuyên dùng), bootloader, locale, timezone, **hostname, user, password** |
 | Sau archinstall | Chọn **Exit** (KHÔNG chọn Reboot); calarch tự kiểm tra kết quả (fstab, user, bootloader) |
 | calarch post-install | Tự động: kernel params (mọi bootloader), console font, rEFInd (nếu dùng), bundle calarch vào `~/calarch`, `.bash_login` godmode |
-| Sau reboot | Lần đầu login: chạy post-install + god-mode setup (dùng bản calarch đã bundle, `git pull` chỉ là fallback) |
+| Sau reboot | Lần đầu login: chạy post-install + **God-Mode setup (guided)** — menu checklist hiện trực tiếp, không chạy ngầm (dùng bản calarch đã bundle, `git pull` chỉ là fallback) |
 
 > **Cấu hình khuyến nghị trong archinstall (cho newbie):**
 
@@ -68,9 +68,22 @@ bash <(curl -s https://tpc-pascal.github.io/calarch/install)
 ### Sau khi reboot lần đầu
 
 1. **Login:** user + password do bạn tự đặt trong archinstall
-2. **Tự động:** `.bash_login` chạy post-install + god-mode setup (ngầm, không block login) — dùng bản calarch đã bundle sẵn tại `~/calarch`; nếu chưa có mạng sẽ in dòng nhắc, đăng nhập lại để chạy tiếp. Log tại `/tmp/godmode-setup.log`
-3. **Kiểm tra:** `cat /tmp/godmode-setup.log` — nếu có lỗi, login sau tự thử lại
-4. **Hoàn tất:** `cd ~/calarch && bash start.sh`
+2. **Tự động:** post-install chạy 1 lần (kernel params, font, rEFInd), sau đó **God-Mode setup hiện menu checklist** (gum) ngay trên màn hình — bạn tick các bước muốn chạy rồi nhấn Enter; calarch chạy từng bước có log + idempotent (chạy lại không lặp)
+3. **Thiếu mạng?** calarch in dòng nhắc — kết nối WiFi/ethernet rồi đăng nhập lại để tiếp tục
+4. **Hoàn tất:** log tại `/tmp/godmode-setup.log`, trạng thái tại `/var/lib/godmode/godmode-steps.done`; về sau gọi lại bất cứ lúc nào bằng `cd ~/calarch && bash start.sh` → **G**
+
+> **God-Mode Setup gồm 8 bước (tất cả mặc định chọn hết):**
+>
+> | # | Bước | Tác dụng |
+> |---|------|----------|
+> | 1 | yay | AUR helper (parallel downloads, build từ PKGBUILD) |
+> | 2 | Hyprland JaKooLit | Desktop full HiDPI, animations, app launcher |
+> | 3 | ZRAM + sysctl | Nén RAM 8 GB, giảm swap ổ cứng |
+> | 4 | intel-undervolt | Giảm điện áp CPU/GPU/cache → mát, tiết kiệm pin |
+> | 5 | thermald + TLP | Điều khiển nhiệt độ + quản lý năng lượng |
+> | 6 | Super-Mode & Eco | Daemon ưu tiên hiệu năng (Super) / tiết kiệm pin (Eco) |
+> | 7 | Tweaks | Pacman/reflector/journal tinh chỉnh |
+> | 8 | ananicy-cpp | Ưu tiên IO/CPU cho app (mặc định tắt) |
 
 -----------------------------------------------------------------------
 
@@ -92,6 +105,7 @@ Chạy `bash start.sh` để mở menu chính:
 | 8 | rEFInd Sync — đồng bộ kernel ra ESP |
 | 9 | Profiles — lưu/nạp cấu hình |
 | P | Post-Install Setup — chạy sau khi cài Arch (một lần) |
+| G | God-Mode Setup — yay, Hyprland, ZRAM, undervolt, thermal, super-mode |
 | S | Safety Engine — grace period, undo, history |
 
 ### Các công cụ chi tiết
@@ -107,6 +121,50 @@ Mọi công cụ đều mở được từ TUI (số tương ứng) hoặc chạ
 | Focus Mode | 5 | `lib/focus.sh` | Pomodoro + website blocker |
 | Notes | 6 | `lib/notes.sh` | Obsidian vault manager |
 | Games | 7 | `lib/games.sh` | minetest, assaultcube, megaglest |
+| rEFInd Sync | 8 | `lib/refind-sync.sh` | Đồng bộ kernel + entry + pacman hook ra ESP |
+| Profiles | 9 | `lib/profiles.sh` | Lưu/nạp profile config |
+| Post-Install | P | `lib/post-install.sh` | Chạy sau khi cài Arch (một lần) |
+| God-Mode Setup | G | `lib/godmode-setup.sh` | Checklist 8 bước setup hệ thống |
+| Safety Engine | S | `lib/safety.sh` | Grace period, undo, history |
+| Anime Player | — | `lib/anime.sh` | Search Nyaa.si → xem anime (magnet qua web-torrent) |
+| YouTube Player | — | `lib/yt-video.sh` | Search/playlist YouTube terminal (yt-dlp + mpv) |
+| Spotify | — | `lib/spotify.sh` | Spotify + Spicetify (adblock, Dribbblish) |
+| Neovim | — | `lib/neovim.sh` | Neovim + LazyVim (IDE, formatters) |
+| Emacs | — | `lib/emacs.sh` | Emacs + Org-mode + org-roam |
+| Firefox Config | — | `lib/firefox.sh` | user.js privacy + Sidebery vertical tabs |
+| Launcher | — | `lib/launcher.sh` | Rofi Ultrafocus theme |
+| Web Dashboard | — | `python3 lib/web.sh` | HTTP server localhost:8765 (config/status API) |
+
+> **Anime Player (magnet):** khi chọn file từ Nyaa.si, magnet được phát qua
+> **web-torrent engine** (`webtorrent-cli`, cài tự động qua npm) stream và đẩy lên
+> **mpv** — không phát magnet trực tiếp bằng mpv. mpv vẫn dùng cho direct stream
+> (YouTube, file thường). Nếu thiếu npm/webtorrent-cli: `sudo npm install -g webtorrent-cli`.
+
+### God-Mode Setup — lib/godmode-setup.sh
+
+Chạy lần đầu ngay khi login sau cài Arch; muốn gọi lại:
+
+```bash
+cd ~/calarch && bash start.sh       # chọn G
+bash lib/godmode-setup.sh           # hoặc trực tiếp
+```
+
+- **Idempotent:** bước nào đã chạy thành công thì ghi vào `/var/lib/godmode/godmode-steps.done` — chạy lại tự bỏ qua
+- **Checklist gum:** mặc định chọn hết, bạn chỉ cần Enter
+- **Log:** `/tmp/godmode-setup.log`
+
+Verify nhanh sau khi xong:
+
+```bash
+zramctl                                    # ZRAM 8 GB đã active
+sudo intel-undervolt read                  # current/CPU/GPU/Cache undervolt
+sudo systemctl status undervolt thermald tlp.service  # các service đang chạy
+```
+
+> **Hyprland JaKooLit:** installer tương tác (chọn GPU Intel, display server SDDM,
+> bỏ nvidia). Nếu installer không hoàn tất (lỗi tạm thời), chạy lại option **G**
+> — bước 2 sẽ thử lại, các bước khác không bị ảnh hưởng. Sau khi vào desktop,
+> script tự cài `hyprland-event-monitor.sh` (affinity + eco theo app đang chạy).
 
 -----------------------------------------------------------------------
 
@@ -238,10 +296,31 @@ sudo bash lib/refind-sync.sh
 sudo bash lib/post-install.sh post-install /mnt
 ```
 
-### God-Mode setup không chạy
+### God-Mode setup không chạy khi login
 
 ```bash
+cat /tmp/godmode-setup.log                 # Xem lỗi
 rm -f /var/lib/godmode/firstboot-done
 touch /var/lib/godmode/firstboot-pending
-# Đăng nhập lại
+# Đăng nhập lại — hoặc chạy thủ công:
+bash ~/calarch/lib/godmode-setup.sh
+```
+
+### Hyprland JaKooLit không hoàn tất
+
+```bash
+bash ~/calarch/lib/godmode-setup.sh        # Chạy lại — bước 2 thử lại, bước khác skip
+bash ~/calarch/start.sh                    # rồi chọn G
+```
+
+Nếu installer chết giữa chừng (lỗi download), check mạng rồi thử lại. Desktop
+vẫn vào được bằng bất kỳ WM/DE nào bạn cài sau; calarch không ép buộc Hyprland.
+
+### Kiểm tra god-mode sau khi xong
+
+```bash
+zramctl                                   # 8 GB zstd đang hoạt động
+sudo intel-undervolt read                 # undervolt đã áp dụng?
+sudo systemctl is-enabled undervolt thermald tlp.service
+super-mode status                          # super/eco daemon (bước 6)
 ```

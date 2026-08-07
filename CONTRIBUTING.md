@@ -48,8 +48,13 @@ bash lib/core.sh get KERNEL_PARAMS  # Đọc config
 calarch/
 ├── bootstrap.sh                 # Bootstrap installer — archinstall TUI + calarch post-install
 ├── start.sh                     # Unified TUI — entry point duy nhất
+├── make.sh                      # Builder
 ├── lib/                         # Thư viện chính
+│   ├── tui.sh                   # TUI engine (gum)
+│   ├── core.sh                  # Config I/O + Safety + Profile
+│   ├── config-load.sh           # Config loader
 │   ├── post-install.sh          # Post-install setup
+│   ├── godmode-setup.sh         # God-Mode guided setup (8 bước, idempotent)
 │   ├── system.sh                # System monitor
 │   ├── settings.sh              # Settings panel
 │   ├── mount.sh                 # Drive manager
@@ -57,17 +62,23 @@ calarch/
 │   ├── focus.sh                 # Focus mode
 │   ├── notes.sh                 # Notes manager
 │   ├── games.sh                 # Games launcher
-│   ├── refind-sync.sh           # rEFInd sync
-│   ├── profiles.sh              # Profile manager
+│   ├── refind-sync.sh           # rEFInd ESP kernel sync
+│   ├── anime.sh                 # Anime player (Nyaa + web-torrent)
+│   ├── yt-video.sh              # YouTube player (yt-dlp + mpv)
+│   ├── spotify.sh               # Spotify + Spicetify
+│   ├── neovim.sh                # Neovim + LazyVim
+│   ├── emacs.sh                 # Emacs + Org-mode
+│   ├── firefox.sh               # Firefox config
+│   ├── launcher.sh              # Rofi launcher
 │   ├── safety.sh                # Safety engine
-│   ├── core.sh                  # Config I/O + Safety + Profile
+│   ├── profiles.sh              # Profile manager
 │   ├── dashboard.sh             # Legacy dashboard
 │   └── ... (các script khác)
+├── tests/                       # Bats test suite (bash tests/run.sh)
 ├── calarch.conf                 # Config trung tâm
 ├── .github/workflows/
 │   ├── release.yml
 │   └── deploy-pages.yml
-└── make.sh                      # Builder
 ```
 
 ---
@@ -80,6 +91,12 @@ Trước khi gửi Pull Request, vui lòng đảm bảo:
 - Không làm ảnh hưởng đến các tính năng cũ.
 - Các toggle trong settings panel hoạt động đúng.
 - `bash lib/tui.sh` — gum TUI còn hoạt động.
+- **Chạy test suite** (bắt buộc):
+  ```bash
+  bash tests/run.sh     # syntax check toàn bộ *.sh + Bats unit tests
+  ```
+  Yêu cầu `bats` (`npm install -g bats`). Thêm test mới vào `tests/test_*.bats`
+  cho mọi logic mới (xem `test_post_install.bats`, `test_refind_sync.bats`...).
 
 ---
 
@@ -94,11 +111,11 @@ VERSION=<version> bash make.sh
 
 Sửa đồng bộ **3 chỗ**:
 
-- `bootstrap.sh` → `VERSION="<version>"`
-- `start.sh` → `echo "calarch <version>"`
-- `GUIDE.md` → dòng tagline "Phiên bản mới nhất: v<version>"
+- `bootstrap.sh` → `VERSION="<version>"` (dòng ~15)
+- `start.sh` → `echo "calarch <version>"` (dòng ~103)
+- `GUIDE.md` → dòng tagline "Phiên bản mới nhất: v<version>" (dòng 3)
 
-Ví dụ: v1.0.12 → v1.0.13 sửa cả `bootstrap.sh:15`, `start.sh:99`, `GUIDE.md:3`.
+Ví dụ: v1.0.13 → v1.0.14 sửa cả `bootstrap.sh:15`, `start.sh:103`, `GUIDE.md:3`.
 
 ---
 

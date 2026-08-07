@@ -16,7 +16,8 @@ log_e()  { echo -e "${RED}[EE]${R} $*"; }
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/tui.sh"
 CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
-[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+source "$SCRIPT_DIR/config-load.sh"
+calarch_load_config "$CONFIG_FILE"
 
 MOUNT_BASE="${MOUNT_BASE:-/mnt}"
 
@@ -139,10 +140,19 @@ action_mount() {
     fi
 
     local mount_opts=""
+    # uid/gid dong — khong hardcode 1000 (dung cho user khac, tinh ca qua sudo)
+    local uid gid
+    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+        uid=$(id -u "$SUDO_USER" 2>/dev/null || echo 1000)
+        gid=$(id -g "$SUDO_USER" 2>/dev/null || echo 1000)
+    else
+        uid=$(id -u 2>/dev/null || echo 1000)
+        gid=$(id -g 2>/dev/null || echo 1000)
+    fi
     case "$fstype" in
-        ntfs|ntfs3)  mount_opts="-t ntfs-3g -o uid=1000,gid=1000,umask=022,big_writes" ;;
-        exfat)       mount_opts="-t exfat -o uid=1000,gid=1000,umask=022" ;;
-        vfat)        mount_opts="-t vfat -o uid=1000,gid=1000,umask=022" ;;
+        ntfs|ntfs3)  mount_opts="-t ntfs-3g -o uid=${uid},gid=${gid},umask=022,big_writes" ;;
+        exfat)       mount_opts="-t exfat -o uid=${uid},gid=${gid},umask=022" ;;
+        vfat)        mount_opts="-t vfat -o uid=${uid},gid=${gid},umask=022" ;;
         *)           mount_opts="" ;;
     esac
 
@@ -232,7 +242,7 @@ mount_all() {
         [ -z "$name" ] && continue
         if [ -z "$mountpoint" ]; then
             action_mount "/dev/$name" false
-            ((count++))
+            count=$((count + 1))
         fi
     done <<< "$data"
     if [ "$count" -eq 0 ]; then
@@ -250,7 +260,7 @@ unmount_all() {
         [ -z "$name" ] && continue
         if [ -n "$mountpoint" ]; then
             action_unmount "/dev/$name" false
-            ((count++))
+            count=$((count + 1))
         fi
     done <<< "$data"
     if [ "$count" -eq 0 ]; then
@@ -271,7 +281,9 @@ show_partition_info() {
     fi
     IFS='|' read -r _ fstype size label mountpoint <<< "$data" || true
     local uuid
-    uuid=$(lsblk -J -o NAME,UUID 2>/dev/null | jq -r --arg n "$name" '.blockdevices[] | select(.name == $n) | .uuid // ""' 2>/dev/null || echo "")
+    uuid=$(lsblk -J -o NAME,UUID 2>/dev/null | jq -r --arg n "$name" '
+        ([.blockdevices[] | select(.name == $n) | .uuid // ""] +
+         [.blockdevices[].children[]? | select(.name == $n) | .uuid // ""])[0]' 2>/dev/null || echo "")
     local info="Device: ${dev}\nLabel: ${label:-(none)}\nSize: ${size}\nType: ${fstype}\nUUID: ${uuid:-(none)}\nMount: ${mountpoint:-(none)}"
     tui_msg "PARTITION INFO" "$info" 12 50
 }

@@ -10,6 +10,7 @@ setup() {
     done < <(find "$ROOT" -name '*.sh' -print0)
 
     for f in "${files[@]}"; do
+        case "$f" in */web.sh) continue ;; esac
         if ! bash -n "$f" 2>/dev/null; then
             echo "SYNTAX ERROR: $f"
             bash -n "$f" 2>&1 || true

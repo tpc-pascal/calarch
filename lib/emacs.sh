@@ -15,7 +15,8 @@ log_e()  { echo -e "${RED}[EE]${R} $*"; }
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/tui.sh"
 CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
-[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+source "$SCRIPT_DIR/config-load.sh"
+calarch_load_config "$CONFIG_FILE"
 
 NOTES_DIR="$HOME/notes"
 OBSIDIAN_VAULT="$NOTES_DIR/obsidian"
@@ -143,7 +144,7 @@ sync_obsidian() {
             echo ":END:" >> "$org_file"
             echo "" >> "$org_file"
             cat "$f" >> "$org_file"
-            ((count++))
+            count=$((count + 1))
         fi
     done
 

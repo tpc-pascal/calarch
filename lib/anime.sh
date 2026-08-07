@@ -44,14 +44,32 @@ search_nyaa() {
     return 0
 }
 
+play_magnet() {
+    local magnet="$1"
+    if ! command -v webtorrent &>/dev/null; then
+        log_i "Dang cai webtorrent-cli (web-torrent engine)..."
+        if ! sudo npm install -g webtorrent-cli 2>/dev/null; then
+            log_e "Khong the cai webtorrent-cli. Cai thu cong: sudo npm install -g webtorrent-cli"
+            return 1
+        fi
+    fi
+    log_i "Dang phat torrent qua webtorrent -> mpv..."
+    clear
+    # Magnet khong the phat truc tiep bang mpv — chuyen qua web-torrent engine,
+    # engine se stream va day len mpv. (mpv van dung cho direct stream)
+    webtorrent download "$magnet" --mpv 2>/dev/null || true
+}
+
 select_and_play() {
-    local items=() i=1
+    local items=() ids=() i=1
     while IFS= read -r line; do
         [ -z "$line" ] && continue
-        local title
+        local title id
         title=$(echo "$line" | sed 's/<[^>]*>//g' | head -c 60)
-        items+=("$i" "$title")
-        ((i++))
+        id=$(echo "$line" | grep -oP '/view/\K[0-9]+' | head -1)
+        items+=("$i" "${title:-?}")
+        ids+=("${id:-}")
+        i=$((i + 1))
     done < "$CACHE_DIR/nyaa-results.txt"
 
     if [ ${#items[@]} -eq 0 ]; then
@@ -63,19 +81,21 @@ select_and_play() {
     sel=$(tui_menu "ANIME" "Chon anime de xem:" 18 66 8 "${items[@]}") || return
     [ -z "$sel" ] && return
 
-    local idx=$((sel * 2 - 1))
+    # tui_menu tra ve tag (index 1..N) — ban do sang view ID thuc
+    local view_id="${ids[$((sel-1))]:-}"
+    [ -z "$view_id" ] && { log_e "Khong xac dinh duoc view ID"; return; }
+
     local magnet
-    magnet=$(curl -s "https://nyaa.si/view/$sel" 2>/dev/null | grep -oP 'magnet:\?[^"]+' | head -1 || true)
+    magnet=$(curl -s "https://nyaa.si/view/$view_id" 2>/dev/null | grep -oP 'magnet:\?[^"]+' | head -1 || true)
 
     if [ -n "$magnet" ]; then
         log_i "Dang phat torrent..."
-        echo "$(date '+%Y-%m-%d %H:%M') | Anime #$sel" >> "$HISTORY_FILE"
-        clear
-        mpv --no-input-default-bindings "$magnet" 2>/dev/null || true
+        echo "$(date '+%Y-%m-%d %H:%M') | Anime #${view_id}" >> "$HISTORY_FILE"
+        play_magnet "$magnet"
         read -r -p "Press Enter..."
     else
         log_i "Khong tim thay magnet, mo trang web..."
-        xdg-open "https://nyaa.si/view/$sel" 2>/dev/null || true
+        xdg-open "https://nyaa.si/view/$view_id" 2>/dev/null || true
     fi
 }
 
