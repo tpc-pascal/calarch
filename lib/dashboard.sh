@@ -14,8 +14,14 @@ CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
 LAYOUT_DIR="$HOME/.config/calarch"
 LAYOUT_FILE="$LAYOUT_DIR/layout.conf"
 
+# State paths — phai dung chung logic voi core.sh (per-user ~/.local/state)
+STATE_BASE="${XDG_STATE_HOME:-$HOME/.local/state}/calarch"
+BOOT_COUNT_FILE="$STATE_BASE/boot-count"
+HISTORY_LOG="$STATE_BASE/history/history.log"
+
 source "$SCRIPT_DIR/tui.sh"
-[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE" 2>/dev/null || true
+source "$SCRIPT_DIR/config-load.sh"
+calarch_load_config "$CONFIG_FILE"
 
 # ============================================================================
 # ANSI RESET
@@ -61,7 +67,11 @@ load_palette() {
 
 save_palette() {
   mkdir -p "$LAYOUT_DIR" 2>/dev/null || true
-  sed -i "/^palette=/d" "$LAYOUT_FILE" 2>/dev/null || true
+  # Xoa moi dong cu cua tung key truoc khi append — tranh chong mau khi lu nhieu lan
+  sed -i -e "/^palette=/d" \
+         -e "/^border=/d" -e "/^title=/d" -e "/^ok=/d" -e "/^warn=/d" \
+         -e "/^crit=/d" -e "/^muted=/d" -e "/^hl=/d" -e "/^btitle=/d" \
+         -e "/^bborder=/d" "$LAYOUT_FILE" 2>/dev/null || true
   echo "palette=${PAL_CURRENT}" >> "$LAYOUT_FILE"
   if [ "${PAL_CURRENT}" = "custom" ]; then
     for key in border title ok warn crit muted hl btitle bborder; do
@@ -120,7 +130,7 @@ custom_palette() {
   local i=0 keys=(border title ok warn crit muted hl btitle bborder)
   while IFS= read -r val; do
     [ -n "$val" ] && P[${keys[$i]}]="\e[${val}m"
-    ((i++))
+    i=$((i + 1))
   done <<< "$result"
   PAL_CURRENT="custom"
   save_palette
@@ -237,7 +247,8 @@ grace_text() {
 }
 boot_text() {
   local c=0
-  [ -f /var/lib/calarch/boot-count ] && c=$(cat /var/lib/calarch/boot-count 2>/dev/null || echo 0)
+  [ -f "$BOOT_COUNT_FILE" ] && c=$(cat "$BOOT_COUNT_FILE" 2>/dev/null || echo 0)
+  [[ "$c" =~ ^[0-9]+$ ]] || c=0
   if [ "$c" -le 2 ]; then echo -e "${P[ok]}OK${R} ($c boot)"
   else echo -e "${P[crit]}ISSUE${R} ($c boots)"; fi
 }
@@ -317,7 +328,8 @@ render_box_content() {
             "${POMODORO_WORK_MINUTES:-25}" "${POMODORO_BREAK_MINUTES:-5}" "${POMODORO_CYCLES:-4}"
           ;;
         1)
-          local bl=$( [ -f /tmp/hosts.focus.backup ] && echo "${P[ok]}ON${R}" || echo "${P[muted]}OFF${R}" )
+          local bl="OFF"
+          grep -qF "# --- calarch-blocker: begin ---" /etc/hosts 2>/dev/null && bl="ON"
           local fo=$( [ -f /tmp/focus.mode.flag ] && echo "${P[ok]}ON${R}" || echo "${P[muted]}OFF${R}" )
           printf "Blocker:%b  Focus:%b" "$bl" "$fo"
           ;;
@@ -493,7 +505,7 @@ draw_header() {
     else
       tab+=" ${P[muted]}${num}${P[muted]}${name}${R}"
     fi
-    ((i++))
+    i=$((i + 1))
   done
   tab+="  ${P[muted]}[${R}${P[hl]}P${R}${P[muted]}]${R}Palette"
   tab+=" ${P[muted]}[${R}${P[hl]}.${R}${P[muted]}]${R}Menu"
@@ -505,7 +517,7 @@ draw_header() {
 
 draw_footer() {
   local cols="$1"
-  tput cup $((LINES-1)) 0
+  tput cup $(( ${LINES:-24} - 1 )) 0
   local grace
   grace=$(grace_text)
   local grace_disp=""
@@ -513,7 +525,7 @@ draw_footer() {
   local boot
   boot=$(boot_text)
   local hist_count=0
-  [ -f /var/lib/calarch/history/history.log ] && hist_count=$(wc -l < /var/lib/calarch/history/history.log 2>/dev/null || echo 0)
+  [ -f "$HISTORY_LOG" ] && hist_count=$(wc -l < "$HISTORY_LOG" 2>/dev/null || echo 0)
   local line="${grace_disp}${P[muted]}History:${R} ${P[hl]}${hist_count}${R}  ${P[muted]}Boot:${R} ${boot}"
   local max=$((cols-1))
   echo -ne "${line:0:max}${R}"
@@ -581,7 +593,8 @@ disable_mouse() {
 read_event() {
   EVENT=""; EVENT_TYPE=""
   local c
-  IFS= read -r -n1 c
+  # stdin dong (khong phai TTY) -> tra ve 1 de main_loop thoat, tranh busy-loop
+  IFS= read -r -n1 c || return 1
   if [ "$c" != $'\e' ]; then
     EVENT="$c"; EVENT_TYPE=key
     return 0
@@ -599,7 +612,7 @@ read_event() {
   seq+="$rest"
 
   EVENT="$seq"
-  if [[ "$seq" =~ $'\e['[0-9]+';'[0-9]+';'[0-9]+[Mm] ]]; then
+  if [[ "$seq" =~ $'\e[''<'?[0-9]+';'[0-9]+';'[0-9]+[Mm] ]]; then
     EVENT_TYPE=mouse
   else
     EVENT_TYPE=key
@@ -608,7 +621,7 @@ read_event() {
 
 parse_mouse() {
   local seq="$1"
-  if [[ "$seq" =~ $'\e['([0-9]+)';'([0-9]+)';'([0-9]+)([Mm]) ]]; then
+  if [[ "$seq" =~ $'\e[''<'?([0-9]+)';'([0-9]+)';'([0-9]+)([Mm]) ]]; then
     local btn="${BASH_REMATCH[1]}" x="${BASH_REMATCH[2]}" y="${BASH_REMATCH[3]}" mt="${BASH_REMATCH[4]}"
     echo "$btn $x $y $mt"
   fi
@@ -720,7 +733,7 @@ dot_menu() {
       grace_confirm_all
       ;;
     history)
-      local logfile="/var/lib/calarch/history/history.log"
+      local logfile="$HISTORY_LOG"
       if [ -f "$logfile" ]; then
         tui_tailbox "HISTORY" "$logfile" 20 70
       else
@@ -828,7 +841,7 @@ edit_form_affinity() {
   local i=0
   while IFS= read -r val; do
     [ -n "$val" ] && "$CORE" set "${keys[$i]}" "$val" 2>/dev/null || true
-    ((i++))
+    i=$((i + 1))
   done <<< "$result"
 }
 
@@ -848,7 +861,7 @@ edit_form_super() {
   local i=0
   while IFS= read -r val; do
     [ -n "$val" ] && "$CORE" set "${keys[$i]}" "$val" 2>/dev/null || true
-    ((i++))
+    i=$((i + 1))
   done <<< "$result"
 }
 
@@ -865,7 +878,7 @@ edit_form_undervolt() {
   local i=0
   while IFS= read -r val; do
     [ -n "$val" ] && "$CORE" set "${keys[$i]}" "$val" 2>/dev/null || true
-    ((i++))
+    i=$((i + 1))
   done <<< "$result"
 }
 
@@ -891,7 +904,7 @@ edit_form_thermal() {
   local i=0
   while IFS= read -r val; do
     [ -n "$val" ] && "$CORE" set "${keys[$i]}" "$val" 2>/dev/null || true
-    ((i++))
+    i=$((i + 1))
   done <<< "$result"
 }
 
@@ -908,7 +921,7 @@ edit_form_display() {
   local i=0
   while IFS= read -r val; do
     [ -n "$val" ] && "$CORE" set "${keys[$i]}" "$val" 2>/dev/null || true
-    ((i++))
+    i=$((i + 1))
   done <<< "$result"
 }
 
@@ -932,7 +945,12 @@ popup_profiles() {
       save)
         local name
         name=$(tui_input "SAVE PROFILE" "Profile name:" 8 44 "my-profile") || continue
-        [ -n "$name" ] && "$CORE" profile save "$name" 2>/dev/null || true
+        if [ -n "$name" ] && [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]]; then
+          "$CORE" profile save "$name" 2>/dev/null || true
+        else
+          tui_msg "SAVE PROFILE" "Ten profile khong hop le (chu-cai/so/./_/-)" 6 50
+          continue
+        fi
         tui_msg "SAVE PROFILE" "Saved: $name" 6 40
         ;;
       load)
@@ -995,12 +1013,13 @@ popup_tools() {
       if pgrep -f "web.sh" &>/dev/null; then
         tui_msg "WEB DASHBOARD" "Running at:\nhttp://localhost:8765" 8 44
       else
-        nohup bash "$SCRIPT_DIR/web.sh" >/tmp/calarch-web.log 2>&1 &
+        # web.sh la Python script — phai goi bang python3, khong phai bash
+        nohup python3 "$SCRIPT_DIR/web.sh" >/tmp/calarch-web.log 2>&1 &
         tui_msg "WEB DASHBOARD" "Started at:\nhttp://localhost:8765" 8 44
       fi
       ;;
     install)
-      bash "$SCRIPT_DIR/auto-install-arch.sh" || true
+      bash "$SCRIPT_DIR/post-install.sh" post-install || true
       ;;
   esac
 }
@@ -1066,7 +1085,7 @@ main_loop() {
   enable_mouse
   draw_all
   while true; do
-    read_event
+    read_event || exit 0
     case "$EVENT_TYPE" in
       mouse) handle_mouse ;;
       key)   handle_key ;;
@@ -1081,7 +1100,8 @@ trap 'disable_mouse; clear; echo "Bye."; exit 1' INT TERM
 trap 'redraw_all' WINCH
 
 "$CORE" boot_check 2>/dev/null || true
-"$CORE" i_am_alive 2>/dev/null || true
+# i_am_alive phai goi sau login (khong goi ngay cung luc o day, neu khong
+# boot guard khong bao gio kich hoat).
 
 if ! tui_detect; then
   echo -e "\e[31mERROR: gum not found. Install: sudo pacman -S gum\e[0m"

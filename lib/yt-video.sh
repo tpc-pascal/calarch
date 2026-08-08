@@ -35,8 +35,13 @@ play_url() {
     [ -z "$url" ] && return
     log_i "Dang phat: $url"
     clear
+    # Chuyen "720p"/"2160p" -> 720/2160; "best" -> khong loc do cao
+    local height_filter=""
+    if [[ "$quality" =~ ^[0-9]+ ]]; then
+        height_filter="bestvideo[height<=?${BASH_REMATCH[0]}]+"
+    fi
     mpv --no-input-default-bindings \
-        --ytdl-format="bestvideo[height<=?${quality}]+bestaudio/best" \
+        --ytdl-format="${height_filter}bestaudio/best" \
         --term-status-msg="" \
         --osd-level=0 \
         "$url" 2>/dev/null || mpv "$url" 2>/dev/null
@@ -99,7 +104,7 @@ playlist_subscribe() {
         local title
         title=$(echo "$entry" | python3 -c "import sys,json; print(json.load(sys.stdin).get('title','?'))" 2>/dev/null || echo "?")
         items+=("$i" "$title")
-        ((i++))
+        i=$((i + 1))
     done <<< "$entries"
 
     if [ ${#items[@]} -eq 0 ]; then

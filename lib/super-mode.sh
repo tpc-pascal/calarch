@@ -9,7 +9,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
-[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+source "$SCRIPT_DIR/config-load.sh"
+calarch_load_config "$CONFIG_FILE"
 
 PID_FILE="/tmp/super-mode.pid"
 LOG_FILE="/tmp/super-mode.log"
@@ -28,12 +29,22 @@ cool_timer=0
 
 log() { echo "[$(date '+%H:%M:%S')] $*" >> "$LOG_FILE"; }
 
+# Ghi file he thong: dung sudo -n (khong treo doi mat khau khi chay daemon user)
+write_sys() {
+    local val="$1" path="$2"
+    if [ "$(id -u)" = "0" ]; then
+        echo "$val" > "$path" 2>/dev/null || true
+    else
+        echo "$val" | sudo -n tee "$path" >/dev/null 2>&1 || true
+    fi
+}
+
 set_cool() {
     if $cool_active; then return; fi
     echo -e "\033[0;34m>>> [COOL] Saving power...\033[0m"
     log "COOL mode"
-    echo "$COOL_GOV" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null 2>&1 || true
-    echo 1 | sudo tee "$eco_path" >/dev/null 2>&1 || true
+    write_sys "$COOL_GOV" /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+    write_sys 1 "$eco_path"
     cool_active=true
 }
 
@@ -41,8 +52,8 @@ set_hot() {
     if ! $cool_active; then return; fi
     echo -e "\033[0;31m>>> [HOT] Full performance...\033[0m"
     log "HOT mode"
-    echo "$HOT_GOV" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null 2>&1 || true
-    echo 0 | sudo tee "$eco_path" >/dev/null 2>&1 || true
+    write_sys "$HOT_GOV" /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+    write_sys 0 "$eco_path"
     cool_active=false
 }
 
@@ -78,6 +89,15 @@ main() {
     echo -e "\033[0;35mSuper Mode Daemon started (PID $$)\033[0m"
     echo -e "\033[0;90m  HOT >${HOT_THRESH}% load (${HOT_DEBOUNCE}s) OR compiler process"
     echo -e "  COOL <${COOL_THRESH}% load (${COOL_DEBOUNCE}s)\033[0m"
+
+    # Dinh nghia trang thai ban dau theo governor hien tai (tranh ghi thua)
+    local cur_gov
+    cur_gov=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo "")
+    if [ "$cur_gov" = "$COOL_GOV" ]; then
+        cool_active=true
+    else
+        cool_active=false
+    fi
 
     while true; do
         local load

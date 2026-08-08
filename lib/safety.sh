@@ -2,6 +2,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CORE="$SCRIPT_DIR/core.sh"
+source "$SCRIPT_DIR/tui.sh"
 
 safety_menu() {
     while true; do

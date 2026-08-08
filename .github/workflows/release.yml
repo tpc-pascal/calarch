@@ -27,7 +27,7 @@ jobs:
                 VER="1.0"
               else
                 MAJOR="${LAST%.*}"
-                MINOR="${LAST#*.}"
+                MINOR="${LAST##*.}"
                 VER="$MAJOR.$((MINOR + 1))"
               fi
             fi

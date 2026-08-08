@@ -15,7 +15,8 @@ log_e()  { echo -e "${RED}[EE]${R} $*"; }
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/tui.sh"
 CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
-[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+source "$SCRIPT_DIR/config-load.sh"
+calarch_load_config "$CONFIG_FILE"
 
 setup_kitty() {
     mkdir -p "$HOME/.config/kitty"
@@ -151,10 +152,10 @@ source "$ZSH/oh-my-zsh.sh"
 # Ultrafocus aliases
 alias nv='nvim'
 alias vim='nvim'
-alias yt='bash ~/.config/calarch/yt-video.sh'
-alias anime='bash ~/.config/calarch/anime.sh'
+alias yt='bash ~/calarch/lib/yt-video.sh'
+alias anime='bash ~/calarch/lib/anime.sh'
 alias spot='spotify'
-alias god='pascal-mode'
+alias god='bash ~/calarch/lib/godmode-setup.sh'
 alias ff='firefox'
 alias kitty='kitty'
 alias ls='eza --icons --group-directories-first'

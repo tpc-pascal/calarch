@@ -20,11 +20,17 @@ def ultrafocus_status():
 class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/api/status':
-            data = subprocess.check_output(['bash', CORE, 'api'], text=True, timeout=2)
-            self.send_json(json.loads(data))
+            try:
+                data = subprocess.check_output(['bash', CORE, 'api'], text=True, timeout=2)
+                self.send_json(json.loads(data))
+            except Exception as e:
+                self.send_json({"ok": False, "error": str(e)})
         elif self.path == '/api/config':
-            data = subprocess.check_output(['bash', CORE, 'list-json'], text=True, timeout=2)
-            self.send_json(json.loads(data))
+            try:
+                data = subprocess.check_output(['bash', CORE, 'list-json'], text=True, timeout=2)
+                self.send_json(json.loads(data))
+            except Exception as e:
+                self.send_json({"ok": False, "error": str(e)})
         elif self.path == '/api/ultrafocus':
             self.send_json(json.loads(ultrafocus_status()))
         else:
@@ -42,9 +48,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.send_json({"ok": True, "key": key, "val": val})
             except subprocess.CalledProcessError as e:
                 self.send_json({"ok": False, "error": e.output})
+            except Exception as e:
+                self.send_json({"ok": False, "error": str(e)})
         elif self.path == '/api/grace':
-            subprocess.check_output(['bash', CORE, 'grace_confirm', 'all'], text=True, timeout=2)
-            self.send_json({"ok": True})
+            try:
+                subprocess.check_output(['bash', CORE, 'grace_confirm', 'all'], text=True, timeout=2)
+                self.send_json({"ok": True})
+            except Exception as e:
+                self.send_json({"ok": False, "error": str(e)})
 
     def send_json(self, obj):
         b = json.dumps(obj).encode()

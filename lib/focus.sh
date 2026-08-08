@@ -17,9 +17,13 @@ log_e()  { echo -e "${RED}[EE]${R} $*"; }
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/tui.sh"
 CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
-[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+source "$SCRIPT_DIR/config-load.sh"
+calarch_load_config "$CONFIG_FILE"
 
-HOSTS_BACKUP="/tmp/hosts.focus.backup"
+HOSTS_BACKUP="/var/lib/calarch/hosts.backup"
+HOSTS_BACKUP_LEGACY="/tmp/hosts.focus.backup"
+BLOCK_MARK_BEGIN="# --- calarch-blocker: begin ---"
+BLOCK_MARK_END="# --- calarch-blocker: end ---"
 
 # Build blocklist from config (comma-separated -> array)
 BLOCKLIST_SRC="${BLOCKER_SITES:-facebook.com,twitter.com,x.com,instagram.com,reddit.com,tiktok.com,youtube.com,netflix.com}"
@@ -66,32 +70,103 @@ pomodoro_timer() {
 }
 
 # --- Website Blocker ---
-website_blocker() {
-    if [ -f "$HOSTS_BACKUP" ]; then
-        # Unblock
-        if [ -f /etc/hosts ] && [ -f "$HOSTS_BACKUP" ]; then
-            sudo cp "$HOSTS_BACKUP" /etc/hosts 2>/dev/null || true
-            rm -f "$HOSTS_BACKUP"
-            log_ok "Websites DA MO (unblocked)"
+# Blocked state = marker section trong /etc/hosts (khong phu thuoc /tmp)
+# Backup persistent = /var/lib/calarch/hosts.backup (khoi mat state khi reboot)
+blocker_active() {
+    [ -f /etc/hosts ] || return 1
+    grep -qF "$BLOCK_MARK_BEGIN" /etc/hosts 2>/dev/null
+}
+
+_blocker_backup() {
+    [ -f "$HOSTS_BACKUP" ] && { echo "$HOSTS_BACKUP"; return; }
+    [ -f "$HOSTS_BACKUP_LEGACY" ] && { echo "$HOSTS_BACKUP_LEGACY"; return; }
+    return 1
+}
+
+strip_block_section() {
+    [ -f /etc/hosts ] || return 0
+    grep -qF "$BLOCK_MARK_BEGIN" /etc/hosts 2>/dev/null || return 0
+    local tmp
+    tmp=$(mktemp) || return 1
+    awk -v b="$BLOCK_MARK_BEGIN" -v e="$BLOCK_MARK_END" '
+        BEGIN { skip=0 }
+        index($0, b) == 1 { skip=1; next }
+        index($0, e) == 1 { skip=0; next }
+        !skip { print }
+    ' /etc/hosts > "$tmp"
+    # install -m 644: giu mode /etc/hosts (cp tu mktemp se tao 0600)
+    sudo install -m 644 "$tmp" /etc/hosts 2>/dev/null
+    local rc=$?
+    rm -f "$tmp"
+    return "$rc"
+}
+
+block_websites() {
+    [ -f /etc/hosts ] || { log_e "/etc/hosts khong ton tai"; return 1; }
+    if blocker_active; then
+        log_w "Websites da bi chan tu truoc"
+        return 0
+    fi
+
+    # Backup lan dau khi hosts con sach (persistent, khong bi mat khi reboot)
+    if ! _blocker_backup >/dev/null; then
+        sudo mkdir -p /var/lib/calarch 2>/dev/null || true
+        sudo cp /etc/hosts "$HOSTS_BACKUP" 2>/dev/null || {
+            log_e "Khong the tao backup /etc/hosts — huy chan web"
+            return 1
+        }
+    fi
+
+    # Idempotent: bo section cu truoc khi ghi lai
+    strip_block_section || log_w "Khong the strip section cu trong /etc/hosts"
+
+    local tmp
+    tmp=$(mktemp) || return 1
+    cp /etc/hosts "$tmp" 2>/dev/null || true
+    echo "$BLOCK_MARK_BEGIN" >> "$tmp"
+    for site in "${BLOCKLIST[@]}"; do
+        if ! grep -qF " $site" "$tmp" 2>/dev/null; then
+            echo "127.0.0.1 $site" >> "$tmp"
+            echo "::1 $site" >> "$tmp"
         fi
-    else
-        # Backup + block
-        sudo cp /etc/hosts "$HOSTS_BACKUP" 2>/dev/null || true
-        local temp_hosts=$(mktemp)
-        sudo cat /etc/hosts > "$temp_hosts" 2>/dev/null || true
-        for site in "${BLOCKLIST[@]}"; do
-            echo "127.0.0.1 $site" >> "$temp_hosts"
-            echo "::1 $site" >> "$temp_hosts"
-        done
-        sudo cp "$temp_hosts" /etc/hosts 2>/dev/null || true
-        rm -f "$temp_hosts"
+    done
+    echo "$BLOCK_MARK_END" >> "$tmp"
+    if sudo install -m 644 "$tmp" /etc/hosts 2>/dev/null; then
+        rm -f "$tmp"
         log_ok "Websites DA CHAN (blocked)"
+    else
+        rm -f "$tmp"
+        log_e "Khong the ghi /etc/hosts"
+        return 1
+    fi
+}
+
+unblock_websites() {
+    local bak
+    if bak=$(_blocker_backup); then
+        sudo install -m 644 "$bak" /etc/hosts 2>/dev/null || log_e "Khong the restore /etc/hosts tu backup"
+        sudo rm -f "$bak" 2>/dev/null || true
+    else
+        strip_block_section || log_w "Khong the strip section trong /etc/hosts"
+    fi
+    if ! blocker_active; then
+        log_ok "Websites DA MO (unblocked)"
+    else
+        log_w "Chua the unblock hoan toan /etc/hosts"
+    fi
+}
+
+website_blocker() {
+    if blocker_active; then
+        unblock_websites
+    else
+        block_websites
     fi
     read -r -p "Press Enter..."
 }
 
 blocker_status() {
-    if [ -f "$HOSTS_BACKUP" ]; then
+    if blocker_active; then
         echo -e "${GR}Trang thai: DANG CHAN${R}"
     else
         echo -e "${D}Trang thai: BINH THUONG${R}"
@@ -103,7 +178,7 @@ focus_mode() {
     echo -e "${MG}=== FOCUS MODE ===${R}"
     echo ""
 
-    if [ ! -f "$HOSTS_BACKUP" ]; then
+    if ! blocker_active; then
         log_i "Dang chan web gay mat tap trung..."
         website_blocker  # This blocks and prompts
         log_ok "Web da bi chan"

@@ -15,6 +15,19 @@ set -uo pipefail
 
 PID_FILE="/tmp/cfxz6-rotator.pid"
 
+# Neu PID file con nhung process da chet (SIGKILL/reboot) -> thay the
+if [ -f "$PID_FILE" ]; then
+    OLD_PID=$(cat "$PID_FILE" 2>/dev/null || echo "")
+    ALIVE=0
+    if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+        # Xac nhan process do van la rotator (tranh PID bi tai su dung)
+        pgrep -f "cf-xz6-rotator.sh" 2>/dev/null | grep -qx "$OLD_PID" && ALIVE=1
+    fi
+    if [ "$ALIVE" -eq 0 ]; then
+        rm -f "$PID_FILE" 2>/dev/null || true
+    fi
+fi
+
 if ! (set -o noclobber; echo $$ > "$PID_FILE") 2>/dev/null; then
     echo "Rotator already running (PID $(cat "$PID_FILE" 2>/dev/null))"
     exit 1

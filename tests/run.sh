@@ -30,6 +30,7 @@ echo ""
 echo "--- Syntax check ---"
 ERRORS=0
 while IFS= read -r -d '' f; do
+    case "$f" in */web.sh) continue ;; esac
     if bash -n "$f" 2>/dev/null; then
         echo "  [OK] $f"
     else

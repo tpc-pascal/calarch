@@ -16,11 +16,17 @@ log() {
     echo "[${TIMESTAMP}] $*"
 }
 
+log_w() {
+    log "WARN: $*"
+}
+
 measure() {
     local before after diff
     before=$(df / --output=avail 2>/dev/null | tail -1)
     "$@" 2>/dev/null
     after=$(df / --output=avail 2>/dev/null | tail -1)
+    [[ "$before" =~ ^[0-9]+$ ]] || before=0
+    [[ "$after" =~ ^[0-9]+$ ]] || after=0
     diff=$(( (before - after) / 1024 ))
     [ "$diff" -gt 0 ] && FREED=$((FREED + diff))
 }
@@ -29,46 +35,46 @@ log "=== GodMode Cleanup Started ==="
 
 # 1. Pacman cache
 if command -v yay &>/dev/null; then
-    measure yay -Sc --noconfirm || true && log "OK: yay cache cleaned"
+    measure yay -Sc --noconfirm && log "OK: yay cache cleaned" || log_w "FAIL: yay cache clean"
 else
-    measure sudo pacman -Sc --noconfirm || true && log "OK: pacman cache cleaned"
+    measure sudo pacman -Sc --noconfirm && log "OK: pacman cache cleaned" || log_w "FAIL: pacman cache clean"
 fi
 
 # 2. paccache (giu 1 phien ban gan nhat)
 if command -v paccache &>/dev/null; then
-    measure sudo paccache -r -k 1 || true && log "OK: paccache cleaned"
+    measure sudo paccache -r -k 1 && log "OK: paccache cleaned" || log_w "FAIL: paccache clean"
 fi
 
 # 3. NPM cache
 if command -v npm &>/dev/null; then
-    measure npm cache clean --force || true && log "OK: npm cache cleaned"
+    measure npm cache clean --force && log "OK: npm cache cleaned" || log_w "FAIL: npm cache clean"
 fi
 
 # 4. Yarn cache
 if command -v yarn &>/dev/null; then
-    measure yarn cache clean || true && log "OK: yarn cache cleaned"
+    measure yarn cache clean && log "OK: yarn cache cleaned" || log_w "FAIL: yarn cache clean"
 fi
 
 # 5. Docker prune
 if command -v docker &>/dev/null && systemctl is-active docker &>/dev/null; then
-    measure docker system prune -af --volumes || true && log "OK: Docker cleaned"
+    measure docker system prune -af --volumes && log "OK: Docker cleaned" || log_w "FAIL: docker prune"
 fi
 
 # 6. Podman prune
 if command -v podman &>/dev/null; then
-    measure podman system prune -af || true && log "OK: Podman cleaned"
+    measure podman system prune -af && log "OK: Podman cleaned" || log_w "FAIL: podman prune"
 fi
 
 # 7. Log files > 50MB
-measure sudo find /var/log -type f -size +50M -exec truncate -s 0 {} \; 2>/dev/null || true
-log "OK: Large logs truncated"
+measure sudo find /var/log -type f -size +50M -exec truncate -s 0 {} \; 2>/dev/null && \
+    log "OK: Large logs truncated" || log_w "FAIL: truncate large logs"
 
 # 8. Journald (giu 10 ngay)
-measure sudo journalctl --vacuum-time=10d 2>/dev/null || true && log "OK: journal cleaned (10d)"
+measure sudo journalctl --vacuum-time=10d 2>/dev/null && log "OK: journal cleaned (10d)" || log_w "FAIL: journal vacuum"
 
 # 9. Trash >30 ngay
 if command -v trash-empty &>/dev/null; then
-    measure trash-empty 30 || true && log "OK: old trash emptied"
+    measure trash-empty 30 && log "OK: old trash emptied" || log_w "FAIL: trash-empty"
 fi
 
 # 10. User caches (quét tất cả user home, không chỉ root)
@@ -76,16 +82,16 @@ for user_home in /home/*; do
     [ -d "$user_home" ] || continue
     obs_cache="$user_home/.cache/obsidian"
     if [ -d "$obs_cache" ]; then
-        measure find "$obs_cache" -type f -atime +30 -delete 2>/dev/null || true
-        log "OK: Obsidian cache cleaned for $user_home"
+        measure find "$obs_cache" -type f -atime +30 -delete 2>/dev/null && \
+            log "OK: Obsidian cache cleaned for $user_home" || log_w "FAIL: Obsidian cache clean ($user_home)"
     fi
     measure find "$user_home" -name "*.xopp.bak" -type f -mtime +15 -delete 2>/dev/null || true
 done
 
 # 12. Snapper cleanup
 if command -v snapper &>/dev/null; then
-    sudo snapper -c root cleanup 2>/dev/null || true && log "OK: snapper root cleaned"
-    sudo snapper -c home cleanup 2>/dev/null || true && log "OK: snapper home cleaned"
+    sudo snapper -c root cleanup 2>/dev/null && log "OK: snapper root cleaned" || log_w "FAIL: snapper root"
+    sudo snapper -c home cleanup 2>/dev/null && log "OK: snapper home cleaned" || log_w "FAIL: snapper home"
 fi
 
 # 13. Btrfs balance (if usage diff >20%)
@@ -95,7 +101,8 @@ if command -v btrfs &>/dev/null; then
     total=$((total / 1048576))
     pct_unallocated=$(echo "scale=0; $usage * 100 / $total" | bc 2>/dev/null || echo 0)
     if [ "$pct_unallocated" -lt 20 ] 2>/dev/null; then
-        measure sudo btrfs balance start -dusage=50 -musage=50 / || true && log "OK: Btrfs balanced"
+        measure sudo btrfs balance start -dusage=50 -musage=50 / && \
+            log "OK: Btrfs balanced" || log_w "FAIL: btrfs balance"
     else
         log "INFO: Btrfs unallocated ${pct_unallocated}% (no balance needed)"
     fi

@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.13"
+VERSION="1.0.14"
 
 # --- Colors ---
 R='\033[0m'; B='\033[1m'
@@ -23,10 +23,24 @@ warn()  { echo -e "${YEL}[!!]${R} $*"; }
 err()   { echo -e "${RED}[EE]${R} $*"; exit 1; }
 section() {
     if command -v gum &>/dev/null; then
-        gum style --border double --padding "0 1" --margin "1 0" --foreground 99 "$*" 2>/dev/null
+        gum style --border double --padding "0 1" --margin "1 0" --foreground 99 "$*" 2>/dev/null \
+            || echo -e "\n${CY}=== $* ===${R}"
     else
         echo -e "\n${CY}=== $* ===${R}"
     fi
+}
+
+# Chi giu lai ky tu an toan trong kernel cmdline. Ngan chan ky tu dac biet
+# (", $, backtick, &, |, \) lam vo hieu hoa heredoc refind_linux.conf va sed.
+sanitize_kernel_params() {
+    printf '%s' "$1" | tr -cd 'A-Za-z0-9_./:=\-+@, '
+}
+
+# chpasswd nhan dinh dang "user:pass" — khong cho phep ':' hoac xuong dong
+validate_pass() {
+    case "$1" in
+        *[:$'\n'$'\r']*) err "Password khong duoc chua ky tu ':' hoac xuong dong" ;;
+    esac
 }
 
 # --- Config ---
@@ -42,6 +56,8 @@ ROOT_PASS="${CALARCH_ROOT_PASS:-}"
 USER_PASS="${CALARCH_USER_PASS:-}"
 CONSOLE_FONT="${CALARCH_CONSOLE_FONT:-ter-132n}"
 KERNEL_PARAMS="${CALARCH_KERNEL_PARAMS:-nowatchdog processor.max_cstate=4 intel_idle.max_cstate=4 i915.enable_fbc=1 i915.enable_psr=1 i915.enable_rc6=1 i915.fastboot=1 mitigations=off pcie_aspm=force}"
+# Sanitize ngay tai diem nap de moi noi su dung (state.sh, heredoc, sed) deu an toan
+KERNEL_PARAMS=$(sanitize_kernel_params "$KERNEL_PARAMS")
 ARCHINSTALL_DONE=0
 
 BASE_PKGS=(
@@ -147,7 +163,7 @@ detect_disk() {
         [[ "$label" == *"ARCH"* ]] && continue
         echo "$d" && return
     done
-    lsblk -dno NAME,TYPE | awk '$2=="disk" && $1!~/loop|ram|sr|zram/ {print "/dev/"$1; exit}'
+    lsblk -dno NAME,TYPE 2>/dev/null | awk '$2=="disk" && $1!~/loop|ram|sr|zram/ {print "/dev/"$1; exit}' || echo ""
 }
 
 # ============================================================================
@@ -182,9 +198,9 @@ prompt_identity() {
     echo -n "Username [${USERNAME}]: "
     read -r input; [ -n "$input" ] && USERNAME="$input"
     echo -n "Root password [auto-generate] (enter to generate): "
-    read -r input; [ -n "$input" ] && ROOT_PASS="$input"
+    read -r input; [ -n "$input" ] && { validate_pass "$input"; ROOT_PASS="$input"; }
     echo -n "User password [auto-generate] (enter to generate): "
-    read -r input; [ -n "$input" ] && USER_PASS="$input"
+    read -r input; [ -n "$input" ] && { validate_pass "$input"; USER_PASS="$input"; }
 }
 
 prompt_font() {
@@ -219,11 +235,9 @@ connect_wifi() {
     echo ""
 
     local dev
-    dev=$(iwctl device list 2>/dev/null | awk '$1=="station" || $4=="station" {print $1; exit}')
-    [ -z "$dev" ] && dev=$(iwctl device list 2>/dev/null | grep -i station | awk '{print $1; exit}')
-    if [ -z "$dev" ]; then
-        dev=$(iwctl device list 2>/dev/null | sed -n 's/^[[:space:]]*\(wlan[0-9]*\).*/\1/p' | head -1)
-    fi
+    # Tim device wlan* (bat ky cot nao), khong phu thuoc cu phap cot cua iwctl
+    dev=$(iwctl device list 2>/dev/null | awk '{for(i=1;i<=NF;i++) if ($i ~ /^wlan[0-9]+$/) {print $i; exit}}')
+    [ -z "$dev" ] && dev=$(iwctl device list 2>/dev/null | grep -oiE 'wlan[0-9]+' | head -1)
     [ -z "$dev" ] && err "Khong tim thay WiFi adapter (iwctl device list)"
     ok "WiFi adapter: $dev"
 
@@ -273,7 +287,7 @@ try_archinstall() {
     echo -n "Nhan Enter de mo archinstall... "
     read -r
 
-    sudo archinstall || {
+    archinstall || {
         warn "archinstall failed or was cancelled"
         echo -n "Tiep tuc bang calarch manual? [Y/n]: "
         local ans
@@ -284,12 +298,16 @@ try_archinstall() {
 
     for p in /mnt /mnt/archinstall; do
         if [ -d "$p/etc" ] && [ -f "$p/etc/fstab" ]; then
-            [ "$p" != "/mnt" ] && {
+            if [ "$p" != "/mnt" ]; then
                 mkdir -p /mnt 2>/dev/null
                 mount --move "$p" /mnt 2>/dev/null || true
-            }
-            ok "archinstall completed: system tai /mnt"
-            return 0
+            fi
+            # Verify he thong that su nam o /mnt sau khi move
+            if [ -f /mnt/etc/fstab ]; then
+                ok "archinstall completed: system tai /mnt"
+                return 0
+            fi
+            warn "mount --move that bai — he thong van o ${p}"
         fi
     done
 
@@ -390,7 +408,10 @@ phase1() {
     sleep 3
 
     local sfx=""
-    [[ "$DISK" == *"nvme"* ]] || [[ "$DISK" == *"mmcblk"* ]] || [[ "$DISK" == *"vd"* ]] && sfx="p"
+    # nvme0n1 -> nvme0n1p1, mmcblk0 -> mmcblk0p1; /dev/vd* khong can "p"
+    if [[ "$DISK" == *"nvme"* ]] || [[ "$DISK" == *"mmcblk"* ]]; then
+        sfx="p"
+    fi
 
     dd if=/dev/zero of="$DISK" bs=1M count=10 status=none 2>/dev/null || true
     parted -s "$DISK" mklabel gpt || err "Failed to create GPT on ${DISK}"
@@ -457,10 +478,11 @@ phase3() {
         validate_locale "$LOCALE"
 
         if [ -z "$ROOT_PASS" ]; then
-            ROOT_PASS=$(tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c12) || ROOT_PASS="calarch"
+            # Khong dung pipe co early-exit (tr|head => SIGPIPE 141 => fallback sai)
+            ROOT_PASS=$(od -An -N18 -tx1 /dev/urandom 2>/dev/null | tr -dc 'a-zA-Z0-9' | cut -c1-12)
         fi
         if [ -z "$USER_PASS" ]; then
-            USER_PASS=$(tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c12) || USER_PASS="calarch"
+            USER_PASS=$(od -An -N18 -tx1 /dev/urandom 2>/dev/null | tr -dc 'a-zA-Z0-9' | cut -c1-12)
         fi
     else
         USERNAME=$(awk -F: '$3>=1000 && $3!=65534 {print $1; exit}' /mnt/etc/passwd 2>/dev/null || echo "")
@@ -516,17 +538,20 @@ if [ "$ARCHINSTALL_DONE" -eq 0 ]; then
 HEOF
 
     echo "root:${ROOT_PASS}" | chpasswd || echo "WARN: root password change failed"
-    useradd -m -G wheel,storage,power,audio,video,input -s /bin/bash "${USERNAME}" 2>/dev/null || true
+    if ! useradd -m -G wheel,storage,power,audio,video,input -s /bin/bash "${USERNAME}" 2>/dev/null; then
+        echo "WARN: useradd that bai cho '${USERNAME}' — kiem tra lai sau khi boot" >&2
+    fi
     echo "${USERNAME}:${USER_PASS}" | chpasswd || echo "WARN: user password change failed"
 
+    mkdir -p /etc/sudoers.d
     echo "%wheel ALL=(ALL:ALL) ALL" > /etc/sudoers.d/99-wheel
     chmod 440 /etc/sudoers.d/99-wheel
 fi
 
-[ -n "${CONSOLE_FONT}" ] && ! grep -q "^FONT=" /etc/vconsole.conf 2>/dev/null && echo "FONT=${CONSOLE_FONT}" >> /etc/vconsole.conf
+[ -n "${CONSOLE_FONT}" ] && ! grep -q "^FONT=" /etc/vconsole.conf 2>/dev/null && echo "FONT=${CONSOLE_FONT}" >> /etc/vconsole.conf || true
 
 if [ "$ARCHINSTALL_DONE" -eq 0 ]; then
-    sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block filesystems fsck btrfs)/' /etc/mkinitcpio.conf
+    sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block filesystems fsck btrfs)/' /etc/mkinitcpio.conf || true
 fi
 mkinitcpio -P || echo "WARN: mkinitcpio failed"
 
@@ -534,8 +559,9 @@ if [ -d /boot/EFI/refind ]; then
     refind-install 2>/dev/null || true
 
     ROOTFLAGS=""
-    SUBVOL=$(findmnt -rn -o OPTIONS / 2>/dev/null | sed -n 's/.*subvol=\([^,]*\).*/\1/p' | head -1)
+    SUBVOL=$(findmnt -rn -o OPTIONS / 2>/dev/null | sed -n 's/.*subvol=\([^,]*\).*/\1/p' | head -1 || true)
     [ -n "$SUBVOL" ] && ROOTFLAGS="rootflags=subvol=${SUBVOL}"
+    ROOTFLAGS=$(sanitize_kernel_params "$ROOTFLAGS")
 
     ROOT_DEV=$(findmnt -n -o SOURCE / 2>/dev/null || echo "")
     PARTUUID=""
@@ -561,12 +587,12 @@ REFEOF
 elif [ -d /boot/loader/entries ]; then
     for f in /boot/loader/entries/*.conf; do
         [ -f "$f" ] || continue
-        grep -q "nowatchdog" "$f" 2>/dev/null || sed -i "s|^options.*|& ${KERNEL_PARAMS}|" "$f"
+        grep -q "nowatchdog" "$f" 2>/dev/null || sed -i "s|^options.*|& ${KERNEL_PARAMS}|" "$f" 2>/dev/null || true
     done
     echo "systemd-boot detected — kernel params added to loader entries"
 elif [ -f /etc/default/grub ]; then
     grep -q "nowatchdog" /etc/default/grub 2>/dev/null || \
-        sed -i "s|GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*|& ${KERNEL_PARAMS}|" /etc/default/grub
+        sed -i "s|GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*|& ${KERNEL_PARAMS}|" /etc/default/grub 2>/dev/null || true
     command -v grub-mkconfig &>/dev/null && grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || true
     echo "GRUB detected — kernel params added to GRUB config"
 else
@@ -587,20 +613,21 @@ CRSCRIPT
 
     if [ "$ARCHINSTALL_DONE" -eq 0 ]; then
         mkdir -p /root 2>/dev/null || true
-        cat > "$CRED_FILE" << EOF
-╔══════════════════════════════════════════╗
-║     CALARCH INSTALLATION CREDENTIALS     ║
-╚══════════════════════════════════════════╝
-
-  Hostname:   ${HOSTNAME}
-  Username:   ${USERNAME}
-  User pass:  ${USER_PASS}
-  Root pass:  ${ROOT_PASS}
-
-After reboot, login as ${USERNAME}.
-On first login, everything runs automatically.
-Check: cat /tmp/godmode-setup.log
-EOF
+        # Ghi creds bang printf — heredoc khong an toan cho value co ky tu dac biet
+        {
+            printf '╔══════════════════════════════════════════════════╗\n'
+            printf '║     CALARCH INSTALLATION CREDENTIALS             ║\n'
+            printf '╚══════════════════════════════════════════════════╝\n'
+            printf '\n'
+            printf '  Hostname:   %s\n' "$HOSTNAME"
+            printf '  Username:   %s\n' "$USERNAME"
+            printf '  User pass:  %s\n' "$USER_PASS"
+            printf '  Root pass:  %s\n' "$ROOT_PASS"
+            printf '\n'
+            printf 'After reboot, login as %s.\n' "$USERNAME"
+            printf 'On first login, everything runs automatically.\n'
+            printf 'Check: cat /tmp/godmode-setup.log\n'
+        } > "$CRED_FILE"
         chmod 600 "$CRED_FILE" 2>/dev/null || true
         ok "Credentials saved to ${CRED_FILE}"
     fi
@@ -622,6 +649,7 @@ phase4() {
     touch "/mnt/var/lib/godmode/firstboot-pending"
 
     local bashlogin="/mnt/home/${USERNAME}/.bash_login"
+    mkdir -p "$(dirname "$bashlogin")" 2>/dev/null || true
     cat > "$bashlogin" << 'BASHEOF'
 #!/bin/bash
 FLAG="/var/lib/godmode/firstboot-pending"
@@ -633,36 +661,35 @@ RUNNING="/tmp/godmode-setup-running"
 [ -f "$RUNNING" ] && exit 0
 
 touch "$RUNNING"
-(
-    for i in $(seq 1 15); do
-        ping -c 1 -W 1 archlinux.org &>/dev/null && break
-        sleep 2
-    done
-    if ! ping -c 1 -W 1 archlinux.org &>/dev/null; then
-        echo "[calarch] Chua co mang — ket noi WiFi/ethernet roi dang nhap lai de chay setup tu dong."
-        rm -f "$RUNNING"
-        exit 0
-    fi
-    if ! command -v git &>/dev/null; then
-        sudo pacman -Syu --noconfirm 2>/dev/null || true
-        sudo pacman -S git --noconfirm 2>/dev/null || true
-    fi
-    if [ ! -d ~/calarch ]; then
-        git clone --depth=1 https://github.com/tpc-pascal/calarch.git ~/calarch 2>/dev/null || true
-    fi
-    if [ -d ~/calarch ]; then
-        sudo bash ~/calarch/lib/post-install.sh post-install 2>/dev/null
-    fi
+for i in $(seq 1 15); do
+    ping -c 1 -W 1 archlinux.org &>/dev/null && break
+    sleep 2
+done
+if ! ping -c 1 -W 1 archlinux.org &>/dev/null && [ ! -d ~/calarch ]; then
+    echo "[calarch] Chua co mang — ket noi WiFi/ethernet roi dang nhap lai de chay setup tu dong."
+    rm -f "$RUNNING"
+    exit 0
+fi
+command -v git &>/dev/null || sudo pacman -S git --noconfirm 2>/dev/null || true
+if [ ! -d ~/calarch ]; then
+    git clone --depth=1 https://github.com/tpc-pascal/calarch.git ~/calarch 2>/dev/null || true
+fi
+if [ -d ~/calarch ]; then
+    echo ">>> Dang chay post-install (mot lan)..."
+    sudo bash ~/calarch/lib/post-install.sh post-install >> /tmp/godmode-setup.log 2>&1 || true
+    bash ~/calarch/lib/godmode-setup.sh
     rm -f "$FLAG"
     touch "$DONE"
-    rm -f "$RUNNING"
-) &>/tmp/godmode-setup.log &
+fi
+rm -f "$RUNNING"
 BASHEOF
     chown "${USERNAME}:${USERNAME}" "$bashlogin" 2>/dev/null || true
 
     local SCRIPT_DIR
     SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd || echo "/tmp")"
     if [ -d "$SCRIPT_DIR/.git" ]; then
+        # Tranh nest neu da ton tai tu lan chay truoc
+        [ -e "/mnt/home/${USERNAME}/calarch" ] && rm -rf "/mnt/home/${USERNAME}/calarch"
         cp -a "$SCRIPT_DIR" "/mnt/home/${USERNAME}/calarch" 2>/dev/null || true
         chown -R "${USERNAME}:${USERNAME}" "/mnt/home/${USERNAME}/calarch" 2>/dev/null || true
         ok "calarch copied to target home"

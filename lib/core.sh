@@ -13,13 +13,34 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
 PROFILE_DIR="$SCRIPT_DIR/../profiles"
-HISTORY_DIR="/var/lib/calarch/history"
-HISTORY_LOG="$HISTORY_DIR/history.log"
-BOOT_COUNT_FILE="/var/lib/calarch/boot-count"
-GRACE_DIR="/tmp/calarch-grace"
-GRACE_PENDING_DIR="/var/lib/calarch/grace-pending"
+
+# STATE base per-user (truoc day dat /var/lib — root-only, user thuong khong ghi duoc).
+# Khi goi qua sudo, lay home cua SUDO_USER de revert cung dung state.
+if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+  STATE_HOME=$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6 || echo "$HOME")
+  # getent co the exit 0 nhung khong in gi -> STATE_HOME rong
+  [ -z "$STATE_HOME" ] && STATE_HOME="$HOME"
+  HISTORY_DIR="$STATE_HOME/.local/state/calarch/history"
+  HISTORY_LOG="$HISTORY_DIR/history.log"
+  BOOT_COUNT_FILE="$STATE_HOME/.local/state/calarch/boot-count"
+  GRACE_PENDING_DIR="$STATE_HOME/.local/state/calarch/grace-pending"
+else
+  HISTORY_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/calarch/history"
+  HISTORY_LOG="$HISTORY_DIR/history.log"
+  BOOT_COUNT_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/calarch/boot-count"
+  GRACE_PENDING_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/calarch/grace-pending"
+fi
+
+# Grace dir per-user (cung STATE_HOME) — tranh /tmp/calarch-grace world-writable
+# va dam bao user + sudo goi cung mot noi dung PID file.
+GRACE_DIR="${HISTORY_DIR%/history}/grace"
 
 mkdir -p "$HISTORY_DIR" "$GRACE_DIR" "$GRACE_PENDING_DIR" "$PROFILE_DIR" 2>/dev/null || true
+
+# Khi tao state bang quyen root (qua sudo), tra quyen lai cho user thuong
+if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+  chown -R "$SUDO_USER" "$HISTORY_DIR" "$GRACE_DIR" "$GRACE_PENDING_DIR" 2>/dev/null || true
+fi
 
 # ============================================================================
 # SCHEMA: validation rules cho tung key
@@ -90,14 +111,23 @@ has() { command -v "$1" &>/dev/null; }
 
 # get <KEY> — doc gia tri tu calarch.conf
 get() {
-  local key="$1"
+  local key="$1" val
   [ ! -f "$CONFIG_FILE" ] && return 1
-  grep -E "^${key}=" "$CONFIG_FILE" 2>/dev/null | head -1 | cut -d'=' -f2- || true
+  val=$(grep -E "^${key}=" "$CONFIG_FILE" 2>/dev/null | head -1 | cut -d'=' -f2- || true)
+  [ -z "$val" ] && return 1
+  # Bo cap ngoac kep neu co (config duoc ghi dang KEY="value")
+  [[ "$val" == \"*\" && "${#val}" -ge 2 ]] && val="${val:1:${#val}-2}"
+  printf '%s\n' "$val"
 }
 
 # set <KEY> <VAL> — validate + snapshot + ghi + apply + grace
 config_set() {
   local key="$1" val="$2"
+  # Tu choi key rong / khong hop le (tranh ghi dong "=..." vo nghia vao config)
+  if [ -z "$key" ] || ! [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+    log_e "Key khong hop le: '${key:-<empty>}'"
+    return 1
+  fi
   local old
   old=$(get "$key") || true
 
@@ -106,19 +136,24 @@ config_set() {
   snapshot "$key" "$old"
 
   if [ -f "$CONFIG_FILE" ]; then
+    local newval
+    newval=$(printf '%s' "$val" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
     if grep -qE "^${key}=" "$CONFIG_FILE"; then
-      awk -v k="${key}=" -v v="${val}" 'index($0,k)==1{$0=k v}1' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
+      awk -v k="${key}=" -v v="\"${newval}\"" '$0 ~ "^" k { $0=k v } 1' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp"
+      mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
     else
-      echo "${key}=${val}" >> "$CONFIG_FILE"
+      printf '%s="%s"\n' "$key" "$val" >> "$CONFIG_FILE"
     fi
   else
-    echo "${key}=${val}" > "$CONFIG_FILE"
+    printf '%s="%s"\n' "$key" "$val" > "$CONFIG_FILE"
   fi
 
   apply "$key" "$val"
   log "$key" "$old" "$val"
 
-  if [ -z "${PROFILE_LOADING:-}" ] && is_critical "$key"; then
+  # Khi dang revert grace tu dong (CALARCH_GRACE_REVERT=1) thi KHONG mo grace moi,
+  # tranh vong lap flip-flop 5 phut vo han.
+  if [ -z "${PROFILE_LOADING:-}" ] && [ "${CALARCH_GRACE_REVERT:-0}" != "1" ] && is_critical "$key"; then
     grace_start "$key" "$old"
   fi
 }
@@ -135,8 +170,15 @@ list_json() {
   local first=true
   while IFS='=' read -r key val; do
     [ -z "$key" ] && continue
+    # Bo cap ngoac kep bao quanh (config duoc ghi dang KEY="value")
+    [[ "$val" == \"*\" && "${#val}" -ge 2 ]] && val="${val:1:${#val}-2}"
     $first || echo ","
     first=false
+    # Escape JSON: dau \ truoc, sau do dau "
+    key=${key//\\/\\\\}
+    key=${key//\"/\\\"}
+    val=${val//\\/\\\\}
+    val=${val//\"/\\\"}
     printf "\"%s\": \"%s\"" "$key" "$val"
   done < <(list)
   echo ""
@@ -176,6 +218,10 @@ validate() {
       local nproc
       nproc=$(nproc 2>/dev/null || echo 4)
       local max_core=$((nproc - 1))
+      if [ -z "$val" ]; then
+        log_e "Loi: $key khong duoc de trong"
+        return 1
+      fi
       for c in ${val//,/ }; do
         if ! [[ "$c" =~ ^[0-9]+$ ]] || [ "$c" -gt "$max_core" ]; then
           log_e "Loi: $key core $c khong hop le (0-$max_core)"
@@ -197,6 +243,10 @@ validate() {
       ;;
     str)
       [ -z "$val" ] && { log_e "Loi: $key khong duoc de trong"; return 1; }
+      if [[ "$val" == *$'\n'* ]] || [[ "$val" == *$'\r'* ]]; then
+        log_e "Loi: $key khong duoc chua ky tu xuong dong"
+        return 1
+      fi
       ;;
     float)
       if ! [[ "$val" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
@@ -211,24 +261,6 @@ validate() {
         log_e "Loi: $key toi da $max (co: $val)"
         return 1
       fi
-      ;;
-    LAUNCHER_ENGINE)
-      log_i "Launcher engine thay doi thanh: $val (can setup launcher)"
-      ;;
-    FIREFOX_VTABS)
-      log_i "Firefox vertical tabs: $val (can chay firefox.sh de ap dung)"
-      ;;
-    EDITOR_ENGINE)
-      log_i "Editor engine: $val"
-      ;;
-    MEDIA_YT_PLAYER)
-      log_i "Media player: $val"
-      ;;
-    SPOTIFY_THEME)
-      log_i "Spotify theme: $val (chay spotify.sh de ap dung)"
-      ;;
-    NOTES_ENGINE)
-      log_i "Notes engine: $val"
       ;;
   esac
   return 0
@@ -259,7 +291,9 @@ apply() {
         for var in cpu gpu cache; do
           [ -z "${!var}" ] && { log_w "${var^^} is empty, skipping undervolt apply"; return 1; }
         done
-        sudo intel-undervolt apply --cpu "$cpu" --gpu "$gpu" --cache "$cache" 2>/dev/null && \
+        # intel-undervolt khong ho tro --cpu/--gpu/--cache; ghi config roi ap dung
+        sudo sed -i -E "s/^(undervolt 0 )(.*)$/\1'CPU' ${cpu}/; s/^(undervolt 1 )(.*)$/\1'GPU' ${gpu}/; s/^(undervolt 2 )(.*)$/\1'CPU Cache' ${cache}/" /etc/intel-undervolt.conf 2>/dev/null || true
+        sudo intel-undervolt apply 2>/dev/null && \
           log_ok "Undervolt ap dung: CPU ${cpu}mV / GPU ${gpu}mV / Cache ${cache}mV" || \
           log_w "Undervolt apply that bai"
       else
@@ -276,6 +310,12 @@ apply() {
           log_w "Eco mode khong ap dung duoc"
       fi
       ;;
+    LAUNCHER_ENGINE) log_i "Launcher engine: $val (can chay launcher.sh de ap dung)" ;;
+    FIREFOX_VTABS)   log_i "Firefox vertical tabs: $val (chay firefox.sh de ap dung)" ;;
+    EDITOR_ENGINE)   log_i "Editor engine: $val" ;;
+    MEDIA_YT_PLAYER) log_i "Media player: $val" ;;
+    SPOTIFY_THEME)   log_i "Spotify theme: $val (chay spotify.sh de ap dung)" ;;
+    NOTES_ENGINE)    log_i "Notes engine: $val" ;;
   esac
 }
 
@@ -297,7 +337,7 @@ snapshot() {
   local ts
   ts=$(date '+%Y%m%d-%H%M%S')
   if [ -f "$CONFIG_FILE" ]; then
-    cp "$CONFIG_FILE" "$HISTORY_DIR/config-${ts}.bak" 2>/dev/null || true
+    cp "$CONFIG_FILE" "$HISTORY_DIR/config-${ts}-$$-${RANDOM}.bak" 2>/dev/null || true
   fi
   # Cleanup: giu toi da 50 ban backup
   find "$HISTORY_DIR" -maxdepth 1 -name 'config-*.bak' -printf '%T@ %p\0' 2>/dev/null \
@@ -321,15 +361,16 @@ grace_start() {
 
   (
     sleep 300
-    # Het 5 phut: tu dong revert
-    local current
+    # Het 5 phut: tu dong revert. CALARCH_GRACE_REVERT=1 de config_set
+    # khong mo grace moi (tranh vong lap flip-flop vo han).
+    current=""
     current=$(get "$key") || true
     if [ "$current" != "$old" ]; then
       log_w "Grace period het han: revert ${key}=${old}"
-      sudo bash "$SCRIPT_DIR/core.sh" set "$key" "$old" 2>/dev/null || true
+      CALARCH_GRACE_REVERT=1 sudo bash "$SCRIPT_DIR/core.sh" set "$key" "$old" 2>/dev/null || true
     fi
     rm -f "$pid_file" "$pending_file"
-  ) &
+  ) >/dev/null 2>&1 &
   local pid=$!
   echo "$pid" > "$pid_file"
 
@@ -346,8 +387,11 @@ grace_recover_stale() {
     local key
     key=$(basename "$f")
     local pid_file="$GRACE_DIR/${key}.pid"
-    # PID khong con (reboot) → revert
-    [ -f "$pid_file" ] && continue
+    # PID con song → grace van dang chay, bo qua. Da chet/reboot → revert
+    if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file" 2>/dev/null)" 2>/dev/null; then
+      continue
+    fi
+    rm -f "$pid_file" 2>/dev/null || true
     local old
     old=$(cat "$f" 2>/dev/null || true)
     [ -z "$old" ] && { rm -f "$f"; continue; }
@@ -355,7 +399,7 @@ grace_recover_stale() {
     current=$(get "$key") || true
     if [ "$current" != "$old" ]; then
       log_w "Grace recover (reboot): revert ${key}=${old}"
-      sudo bash "$SCRIPT_DIR/core.sh" set "$key" "$old" 2>/dev/null || true
+      CALARCH_GRACE_REVERT=1 sudo bash "$SCRIPT_DIR/core.sh" set "$key" "$old" 2>/dev/null || true
     fi
     rm -f "$f"
   done
@@ -414,8 +458,10 @@ boot_guard_check() {
 
   local count=0
   [ -f "$BOOT_COUNT_FILE" ] && count=$(cat "$BOOT_COUNT_FILE" 2>/dev/null || echo 0)
+  [[ "$count" =~ ^[0-9]+$ ]] || count=0
   count=$((count + 1))
-  echo "$count" > "$BOOT_COUNT_FILE"
+  mkdir -p "$(dirname "$BOOT_COUNT_FILE")" 2>/dev/null || true
+  echo "$count" > "$BOOT_COUNT_FILE" 2>/dev/null || true
 
   if [ "$count" -gt 2 ]; then
     local last_backup
@@ -430,7 +476,8 @@ boot_guard_check() {
 }
 
 boot_guard_alive() {
-  echo 0 > "$BOOT_COUNT_FILE"
+  mkdir -p "$(dirname "$BOOT_COUNT_FILE")" 2>/dev/null || true
+  echo 0 > "$BOOT_COUNT_FILE" 2>/dev/null || true
 }
 
 # ============================================================================
@@ -441,8 +488,9 @@ log() {
   local key="$1" old="$2" new="$3"
   local ts
   ts=$(date '+%Y-%m-%d %H:%M:%S')
-  printf '%s\x1f%s\x1f%s\x1f%s\n' "$ts" "$key" "$old" "$new" >> "$HISTORY_LOG"
-  tail -n 500 "$HISTORY_LOG" > "${HISTORY_LOG}.tmp" && mv "${HISTORY_LOG}.tmp" "$HISTORY_LOG" 2>/dev/null || true
+  mkdir -p "$HISTORY_DIR" 2>/dev/null || true
+  printf '%s\x1f%s\x1f%s\x1f%s\n' "$ts" "$key" "$old" "$new" >> "$HISTORY_LOG" 2>/dev/null || true
+  tail -n 500 "$HISTORY_LOG" 2>/dev/null > "${HISTORY_LOG}.tmp" && mv "${HISTORY_LOG}.tmp" "$HISTORY_LOG" 2>/dev/null || true
 }
 
 undo() {
@@ -480,7 +528,11 @@ show_log() {
 
 profile_save() {
   local name="$1"
-  [ -z "$name" ] && { log_e "Thieu ten profile"; return 1; }
+  # Chan path traversal: ten profile chi cho phep [A-Za-z0-9._-]
+  if [ -z "$name" ] || ! [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    log_e "Ten profile khong hop le (chi dung chu-cai, so, . _ -): '${name:-<empty>}'"
+    return 1
+  fi
   mkdir -p "$PROFILE_DIR" 2>/dev/null || true
   cp "$CONFIG_FILE" "$PROFILE_DIR/${name}.conf" 2>/dev/null && \
     log_ok "Profile saved: ${name}" || \
@@ -489,15 +541,25 @@ profile_save() {
 
 profile_load() {
   local name="$1"
+  if [ -z "$name" ] || ! [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    log_e "Ten profile khong hop le: '${name:-<empty>}'"
+    return 1
+  fi
   local file="$PROFILE_DIR/${name}.conf"
   [ ! -f "$file" ] && { log_e "Profile khong ton tai: ${name}"; return 1; }
 
   log_i "Loading profile: ${name}"
   PROFILE_LOADING=1
-  while IFS='=' read -r key val; do
+  while IFS= read -r line; do
+    [[ "$line" == *=* ]] || continue
+    key=${line%%=*}
+    val=${line#*=}
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    # Bo cap ngoac kep neu co (profile luu dung dinh dang KEY="value")
+    [[ "$val" == \"*\" && "${#val}" -ge 2 ]] && val="${val:1:${#val}-2}"
     [ -z "$key" ] && continue
     config_set "$key" "$val" 2>/dev/null || true
-  done < <(grep -vE '^\s*(#|$)' "$file")
+  done < "$file"
   unset PROFILE_LOADING
   log_ok "Profile loaded: ${name}"
 }
@@ -518,6 +580,10 @@ profile_list() {
 
 profile_delete() {
   local name="$1"
+  if [ -z "$name" ] || ! [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    log_e "Ten profile khong hop le: '${name:-<empty>}'"
+    return 1
+  fi
   local file="$PROFILE_DIR/${name}.conf"
   [ ! -f "$file" ] && { log_e "Profile khong ton tai: ${name}"; return 1; }
   rm "$file" && log_ok "Profile deleted: ${name}"

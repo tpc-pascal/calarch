@@ -26,13 +26,20 @@ tui_menu() {
 }
 
 tui_checklist() {
-  local title="$1" prompt="$2"; shift 5
+  local title="$1" prompt="$2"; shift 2
+  local sel_default=""
+  # Bo qua geometry (so) truoc, vi so luong tham so geometry khong dong nhat
+  while [ $# -gt 0 ] && [[ "$1" =~ ^[0-9]+$ ]]; do shift; done
+  # Optional: "--selected" de pre-check state hien tai
+  if [ "${1:-}" = "--selected" ]; then shift; sel_default="${1:-}"; shift; fi
   local -a tags items
   while [ $# -gt 0 ]; do
     tags+=("$1"); items+=("$2"); shift 3
   done
+  local -a extra=()
+  [ -n "$sel_default" ] && extra=(--selected "$sel_default")
   printf '%s\n' "${items[@]}" \
-    | gum choose --no-limit --height 12 --header "$title" 2>/dev/null \
+    | gum choose --no-limit --height 12 --header "$title" "${extra[@]}" 2>/dev/null \
     | while read -r sel; do
         for i in "${!items[@]}"; do
           [ "${items[$i]}" = "$sel" ] && echo "${tags[$i]}" && break
@@ -42,7 +49,9 @@ tui_checklist() {
 
 tui_msg() {
   echo ""
-  gum style --border rounded --padding "1 2" --width 70 --foreground "$_BDR" "$2"
+  local text
+  text=$(printf '%b' "$2")
+  gum style --border rounded --padding "1 2" --width 70 --foreground "$_BDR" "$text"
   echo ""
   read -r -s -n1
 }
@@ -58,14 +67,18 @@ tui_input() {
 
 tui_form() {
   local title="$1"; shift 5
-  local -a labels results
+  local -a labels defaults results
   while [ $# -gt 0 ]; do
-    labels+=("$1"); shift 5
+    labels+=("$1")
+    defaults+=("$4")
+    shift 8
   done
+  local i=0
   for label in "${labels[@]}"; do
     local val
-    val=$(gum input --header "$title — $label" --placeholder "$label" 2>/dev/null) || return 1
+    val=$(gum input --header "$title — $label" --placeholder "$label" --value "${defaults[$i]}" 2>/dev/null) || return 1
     results+=("$val")
+    i=$((i + 1))
   done
   printf '%s\n' "${results[@]}"
 }
@@ -75,7 +88,7 @@ tui_tailbox() {
 }
 
 tui_gauge()   { gum spin --title "$1: $2" -- sleep 999; }
-tui_info()    { echo ""; gum style --padding "1 2" --foreground "$_IN" "$2"; }
+tui_info()    { echo ""; local text; text=$(printf '%b' "$2"); gum style --padding "1 2" --foreground "$_IN" "$text"; }
 tui_backtitle() { :; }
 tui_radiolist() { tui_menu "$@"; }
 
