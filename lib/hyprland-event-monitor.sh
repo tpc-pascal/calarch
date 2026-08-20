@@ -76,7 +76,7 @@ scan_and_assign_all() {
 }
 
 # --- Main Loop: Lang nghe socket su kien Hyprland ---
-SOCKET_DIR="${XDG_RUNTIME_DIR}/hypr/${HYPRLAND_INSTANCE_SIGNATURE}"
+SOCKET_DIR="${XDG_RUNTIME_DIR:-}/hypr/${HYPRLAND_INSTANCE_SIGNATURE:-}"
 SOCKET_PATH="${SOCKET_DIR}/.socket2.sock"
 
 # Kiem tra phu thuoc
@@ -95,8 +95,6 @@ fi
 
 nc -U "$SOCKET_PATH" | while read -r event_line; do
     if [[ "$event_line" == "activewindow>>"* ]]; then
-        event_data="${event_line#activewindow>>}"
-
         sleep 0.05
 
         active_pid=$(hyprctl activewindow -j 2>/dev/null | jq '.pid' 2>/dev/null || echo "0")

@@ -1,0 +1,75 @@
+name: Tests
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint + Syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Shellcheck (error-only)
+        run: |
+          set -euo pipefail
+          for f in bootstrap.sh make.sh start.sh lib/*.sh; do
+            case "$f" in lib/web.sh) continue ;; esac
+            shellcheck -S error "$f"
+          done
+
+      - name: Bash syntax check
+        run: |
+          set -euo pipefail
+          for f in bootstrap.sh make.sh start.sh lib/*.sh; do
+            case "$f" in lib/web.sh) continue ;; esac
+            bash -n "$f"
+          done
+
+  bats:
+    name: Bats unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats
+        run: sudo apt-get update && sudo apt-get install -y bats
+
+      - name: Run test suite
+        run: bash tests/run.sh
+
+  smoke:
+    name: Runtime smoke (archlinux container)
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install smoke deps
+        run: |
+          pacman -Sy --noconfirm --needed bash coreutils grep sed gawk findutils util-linux git >/dev/null 2>&1 || true
+
+      - name: Config loader smoke
+        run: |
+          set -euo pipefail
+          bash lib/config-load.sh calarch.conf
+          bash lib/config-load.sh "$PWD/calarch.conf"
+
+      - name: Core readonly commands
+        run: |
+          bash lib/core.sh config_list
+          bash lib/core.sh grace_status || true
+
+      - name: Toolchains report (best-effort)
+        run: |
+          echo "=== calarch toolchain reported commands ==="
+          for cmd in mpv yt-dlp rofi spotify spicetify nvim emacs obsidian logseq; do
+            if command -v "$cmd" >/dev/null 2>&1; then
+              echo "[OK] $cmd"
+            else
+              echo "[--] $cmd (not installed in container — expected)"
+            fi
+          done

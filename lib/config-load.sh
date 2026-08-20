@@ -39,6 +39,7 @@ calarch_load_config() {
 
 # Cho phép load truc tiep khi run: bash lib/config-load.sh [config]
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     CONFIG_FILE="${1:-$SCRIPT_DIR/../calarch.conf}"
     calarch_load_config "$CONFIG_FILE"
 fi

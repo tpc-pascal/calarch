@@ -96,7 +96,7 @@ fi
 
 # 13. Btrfs balance (if usage diff >20%)
 if command -v btrfs &>/dev/null; then
-    usage=$(btrfs fi usage / 2>/dev/null | grep "unallocated" | awk '{print $2}' | tr -d 'GiB' || echo 0)
+    usage=$(btrfs fi usage / 2>/dev/null | grep -i "unallocated" | awk '{print $2}' | tr -d 'GiB' || echo 0)
     total=$(df / --output=size 2>/dev/null | tail -1)
     total=$((total / 1048576))
     pct_unallocated=$(echo "scale=0; $usage * 100 / $total" | bc 2>/dev/null || echo 0)

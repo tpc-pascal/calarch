@@ -93,10 +93,18 @@ INIT_EOF
 install_lsps() {
     log_i "Cai dat LSP servers..."
 
-    local npm_lsps=("typescript-language-server" "typescript" "@fsouza/prettierd" "vscode-langservers-extracted")
-    for lsp in "${npm_lsps[@]}"; do
-        command -v "$lsp" &>/dev/null && continue
-        sudo npm install -g "$lsp" 2>/dev/null && log_ok "npm: $lsp" || log_w "npm: $lsp failed"
+    # Binary -> npm package (ten package khac ten binary: tsc, prettierd, vscode-*-language-server)
+    local -A npm_lsps=(
+        [typescript-language-server]=typescript-language-server
+        [tsc]=typescript
+        [prettierd]=@fsouza/prettierd
+        [vscode-html-language-server]=vscode-langservers-extracted
+    )
+    local bin pkg
+    for bin in "${!npm_lsps[@]}"; do
+        command -v "$bin" &>/dev/null && continue
+        pkg="${npm_lsps[$bin]}"
+        sudo npm install -g "$pkg" 2>/dev/null && log_ok "npm: $pkg" || log_w "npm: $pkg failed"
     done
 
     local pacman_lsps=("lua-language-server" "bash-language-server" "yaml-language-server" "marksman" "texlab" "ruff")

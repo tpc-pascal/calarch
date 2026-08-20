@@ -242,7 +242,7 @@ gov_text() {
 }
 grace_text() {
   local g
-  g=$("$CORE" grace_status 2>/dev/null) || true
+  g=$(bash "$CORE" grace_status 2>/dev/null) || true
   echo "$g"
 }
 boot_text() {
@@ -743,7 +743,7 @@ dot_menu() {
       ;;
     undo)
       if tui_yn "UNDO" "Undo last change?" 7 40; then
-        "$CORE" undo 2>/dev/null || true
+        bash "$CORE" undo 2>/dev/null || true
         tui_msg "UNDO" "Done." 5 30
       fi
       redraw_all
@@ -766,7 +766,7 @@ dot_menu() {
 
 grace_confirm_all() {
   local g
-  g=$("$CORE" grace_status 2>/dev/null) || true
+  g=$(bash "$CORE" grace_status 2>/dev/null) || true
   [ -z "$g" ] && { tui_msg "GRACE" "No pending grace items." 6 40; redraw_all; return; }
   local items=()
   for entry in $g; do
@@ -777,7 +777,7 @@ grace_confirm_all() {
   sel=$(tui_checklist "GRACE CONFIRM" \
     "Select items to confirm:" 14 50 "${#items[@]}" "${items[@]}") || { redraw_all; return; }
   for key in $sel; do
-    "$CORE" grace_confirm "$key" 2>/dev/null || true
+    bash "$CORE" grace_confirm "$key" 2>/dev/null || true
   done
   tui_msg "GRACE" "Confirmed: $sel" 6 40
   redraw_all
@@ -840,7 +840,7 @@ edit_form_affinity() {
   local keys=(AFFINITY_ACTIVE_CORES AFFINITY_BG_CORES AFFINITY_ACTIVE_SCHED AFFINITY_ACTIVE_PRIORITY AFFINITY_ACTIVE_IONICE AFFINITY_BG_IONICE)
   local i=0
   while IFS= read -r val; do
-    [ -n "$val" ] && "$CORE" set "${keys[$i]}" "$val" 2>/dev/null || true
+    [ -n "$val" ] && bash "$CORE" set "${keys[$i]}" "$val" 2>/dev/null || true
     i=$((i + 1))
   done <<< "$result"
 }
@@ -860,7 +860,7 @@ edit_form_super() {
   local keys=(SUPER_COOL_THRESHOLD SUPER_HOT_THRESHOLD SUPER_COOL_DEBOUNCE SUPER_HOT_DEBOUNCE SUPER_COOL_GOVERNOR SUPER_HOT_GOVERNOR)
   local i=0
   while IFS= read -r val; do
-    [ -n "$val" ] && "$CORE" set "${keys[$i]}" "$val" 2>/dev/null || true
+    [ -n "$val" ] && bash "$CORE" set "${keys[$i]}" "$val" 2>/dev/null || true
     i=$((i + 1))
   done <<< "$result"
 }
@@ -877,7 +877,7 @@ edit_form_undervolt() {
   local keys=(UNDERVOLT_CPU UNDERVOLT_GPU UNDERVOLT_CACHE)
   local i=0
   while IFS= read -r val; do
-    [ -n "$val" ] && "$CORE" set "${keys[$i]}" "$val" 2>/dev/null || true
+    [ -n "$val" ] && bash "$CORE" set "${keys[$i]}" "$val" 2>/dev/null || true
     i=$((i + 1))
   done <<< "$result"
 }
@@ -888,7 +888,7 @@ edit_form_eco() {
   result=$(tui_form "ECO / CHARGE" \
     "Set charge limit (0 = off, 50-100 = limit):" 8 44 1 "${fields[@]}") || return
   while IFS= read -r val; do
-    [ -n "$val" ] && "$CORE" set ECO_CHARGE_LIMIT "$val" 2>/dev/null || true
+    [ -n "$val" ] && bash "$CORE" set ECO_CHARGE_LIMIT "$val" 2>/dev/null || true
   done <<< "$result"
 }
 
@@ -903,7 +903,7 @@ edit_form_thermal() {
   local keys=(MAX_CSTATE KERNEL_PARAMS)
   local i=0
   while IFS= read -r val; do
-    [ -n "$val" ] && "$CORE" set "${keys[$i]}" "$val" 2>/dev/null || true
+    [ -n "$val" ] && bash "$CORE" set "${keys[$i]}" "$val" 2>/dev/null || true
     i=$((i + 1))
   done <<< "$result"
 }
@@ -920,7 +920,7 @@ edit_form_display() {
   local keys=(DISPLAY_SCALE DISPLAY_RESOLUTION DISPLAY_REFRESH)
   local i=0
   while IFS= read -r val; do
-    [ -n "$val" ] && "$CORE" set "${keys[$i]}" "$val" 2>/dev/null || true
+    [ -n "$val" ] && bash "$CORE" set "${keys[$i]}" "$val" 2>/dev/null || true
     i=$((i + 1))
   done <<< "$result"
 }
@@ -946,7 +946,7 @@ popup_profiles() {
         local name
         name=$(tui_input "SAVE PROFILE" "Profile name:" 8 44 "my-profile") || continue
         if [ -n "$name" ] && [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]]; then
-          "$CORE" profile save "$name" 2>/dev/null || true
+          bash "$CORE" profile save "$name" 2>/dev/null || true
         else
           tui_msg "SAVE PROFILE" "Ten profile khong hop le (chu-cai/so/./_/-)" 6 50
           continue
@@ -972,13 +972,13 @@ popup_profiles() {
         sel=$(tui_menu "LOAD PROFILE" "Select profile:" 14 44 6 "${items[@]}") || continue
         [ "$sel" = "back" ] && continue
         if tui_yn "LOAD PROFILE" "Load '$sel'?" 7 40; then
-          "$CORE" profile load "$sel" 2>/dev/null || true
+          bash "$CORE" profile load "$sel" 2>/dev/null || true
           tui_msg "LOAD PROFILE" "Loaded: $sel" 6 40
         fi
         ;;
       list)
         local output
-        output=$("$CORE" profile list 2>/dev/null) || output="(none)"
+        output=$(bash "$CORE" profile list 2>/dev/null) || output="(none)"
         tui_msg "PROFILES" "Available:\n$output" 10 44
         ;;
       back|*) break ;;
@@ -1099,7 +1099,7 @@ main_loop() {
 trap 'disable_mouse; clear; echo "Bye."; exit 1' INT TERM
 trap 'redraw_all' WINCH
 
-"$CORE" boot_check 2>/dev/null || true
+bash "$CORE" boot_check 2>/dev/null || true
 # i_am_alive phai goi sau login (khong goi ngay cung luc o day, neu khong
 # boot guard khong bao gio kich hoat).
 

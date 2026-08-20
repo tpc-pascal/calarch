@@ -1,22 +1,32 @@
 #!/bin/bash
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 has() { command -v "$1" &>/dev/null; }
 
 super_on()     { pgrep -f "super-mode.sh" &>/dev/null; }
-eco_on()       { [ -f /sys/devices/platform/panasonic/eco_mode ] && [ "$(cat /sys/devices/platform/panasonic/eco_mode)" = "1" ]; }
+eco_on() {
+    [ -f /sys/devices/platform/panasonic/eco_mode ] || return 1
+    local v
+    v=$(cat /sys/devices/platform/panasonic/eco_mode 2>/dev/null) || v=$(sudo -n cat /sys/devices/platform/panasonic/eco_mode 2>/dev/null)
+    [ "$v" = "1" ] && return 0 || return 1
+}
 
 system_info() {
     local cpu_load cpu_temp cpu_freq gov eco_state super_state
     cpu_load=$(awk '{print $1}' /proc/loadavg 2>/dev/null || echo "?")
     if has sensors; then
         cpu_temp=$(sensors 2>/dev/null | grep -i "core 0" | awk '{print $3}' | sed 's/+//' | head -1 || echo "?")
+        [ -z "$cpu_temp" ] && cpu_temp="?"
     else
         cpu_temp=$(for z in /sys/class/thermal/thermal_zone*; do t=$(cat "$z/type" 2>/dev/null); case "$t" in x86_pkg_temp|coretemp|acpitz) cat "$z/temp" 2>/dev/null; break;; esac; done | awk '{printf "%.0f°C", $1/1000}' || echo "?")
+        [ -z "$cpu_temp" ] && cpu_temp="?"
     fi
     cpu_freq=$(awk '/cpu MHz/ {printf "%.2fGHz", $4/1000; exit}' /proc/cpuinfo 2>/dev/null || echo "?")
+    [ -z "$cpu_freq" ] && cpu_freq="?"
     gov=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo "?")
+    [ -z "$gov" ] && gov="?"
     eco_state=$(eco_on && echo "ON" || echo "OFF")
     super_state=$(super_on && echo "ACTIVE" || echo "IDLE")
 

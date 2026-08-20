@@ -38,13 +38,18 @@ tui_checklist() {
   done
   local -a extra=()
   [ -n "$sel_default" ] && extra=(--selected "$sel_default")
-  printf '%s\n' "${items[@]}" \
-    | gum choose --no-limit --height 12 --header "$title" "${extra[@]}" 2>/dev/null \
-    | while read -r sel; do
-        for i in "${!items[@]}"; do
-          [ "${items[$i]}" = "$sel" ] && echo "${tags[$i]}" && break
-        done
-      done
+  # Bat loi ESC/cancel (truoc day pipe nuot exit code cua gum -> apply ngam tai tat ca)
+  local out
+  out=$(printf '%s\n' "${items[@]}" \
+    | gum choose --no-limit --height 12 --header "$title" "${extra[@]}" 2>/dev/null) || return 1
+  [ -z "$out" ] && return 1
+  local line sel
+  while IFS= read -r line; do
+    sel="$line"
+    for i in "${!items[@]}"; do
+      [ "${items[$i]}" = "$sel" ] && echo "${tags[$i]}" && break
+    done
+  done <<< "$out"
 }
 
 tui_msg() {

@@ -33,7 +33,7 @@ profiles_menu() {
                 ;;
             save)
                 read -r -p "Nhap ten profile: " name
-                [ -n "$name" ] && "$CORE" profile save "$name" 2>/dev/null && echo "OK" || echo "Fail"
+                [ -n "$name" ] && bash "$CORE" profile save "$name" 2>/dev/null && echo "OK" || echo "Fail"
                 read -r -p "Enter de tiep..."
                 ;;
             load)
@@ -43,7 +43,7 @@ profiles_menu() {
                 shopt -u nullglob
                 [ ${#items[@]} -eq 0 ] && { tui_msg "PROFILES" "Khong co profile nao" 6 30; continue; }
                 prof=$(tui_menu "LOAD PROFILE" "Chon profile:" 14 50 4 "${items[@]}") || continue
-                [ -n "$prof" ] && "$CORE" profile load "$prof" 2>/dev/null && echo "OK" || echo "Fail"
+                [ -n "$prof" ] && bash "$CORE" profile load "$prof" 2>/dev/null && echo "OK" || echo "Fail"
                 read -r -p "Enter de tiep..."
                 ;;
             back) break ;;

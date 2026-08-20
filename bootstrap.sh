@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.14"
+VERSION="1.0.15"
 
 # --- Colors ---
 R='\033[0m'; B='\033[1m'
@@ -701,6 +701,8 @@ BASHEOF
         fi
         chown -R "${USERNAME}:${USERNAME}" "/mnt/home/${USERNAME}/calarch" 2>/dev/null || true
     fi
+    # Dam bao cac script co exec bit (phong truong hop cp -a tu filesystem mac/git khong giu mode)
+    chmod +x "/mnt/home/${USERNAME}/calarch"/*.sh "/mnt/home/${USERNAME}/calarch"/lib/*.sh 2>/dev/null || true
 
     ok "First-boot hooks created"
 }

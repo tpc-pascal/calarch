@@ -66,7 +66,6 @@ pomodoro_timer() {
     done
     echo -e "${GR}${B}Hoan thanh $cycles cycles!${R}"
     notify-send -t 8000 "Pomodoro" "Da hoan thanh $cycles cycles!" 2>/dev/null || true
-    read -r -p "Press Enter..."
 }
 
 # --- Website Blocker ---

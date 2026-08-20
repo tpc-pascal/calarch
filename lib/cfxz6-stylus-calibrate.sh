@@ -20,7 +20,7 @@ if command -v xsetwacom &>/dev/null; then
     # Liet ke thiet bi
     xsetwacom list devices 2>/dev/null | while read -r device; do
         echo "  Found: $device"
-        dev_name=$(echo "$device" | awk -F':' '{print $1}')
+        dev_name=$(echo "$device" | awk -F':' '{print $1}' | sed 's/[[:space:]]*$//')
         
         # Kich hoat TabletPCButton (palm rejection)
         xsetwacom set "$dev_name" TabletPCButton on 2>/dev/null || true
