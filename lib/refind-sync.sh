@@ -260,8 +260,8 @@ detect_rootflags() {
     echo "${subvol:-}"
 }
 
-# === GET KERNEL PARAMS ===
-get_kernel_params() {
+# === FIND CALARCH CONFIG ===
+find_config_file() {
     local mnt="$1"
     local config_file="$mnt/calarch.conf"
     [ "$mnt" = "/" ] && config_file="/calarch.conf"
@@ -271,8 +271,32 @@ get_kernel_params() {
         home_dirs=$(ls -d "$mnt/home"/*/calarch/calarch.conf 2>/dev/null | head -1 || true)
         [ -n "$home_dirs" ] && config_file="$home_dirs"
     fi
+    [ -f "$config_file" ] && echo "$config_file"
+}
 
-    if [ -f "$config_file" ]; then
+# === GET REFIND SYNC ESP SETTING ===
+get_refind_sync_esp() {
+    local mnt="$1"
+    local config_file
+    config_file=$(find_config_file "$mnt") || true
+    [ -z "$config_file" ] && { echo "true"; return; }
+    local v
+    v=$(grep -E '^REFIND_SYNC_ESP=' "$config_file" 2>/dev/null | head -1 | cut -d'=' -f2- || true)
+    v="${v#\"}"; v="${v%\"}"
+    v="${v#\'}"; v="${v%\'}"
+    case "${v,,}" in
+        false|no|off|0) echo "false" ;;
+        *) echo "true" ;;
+    esac
+}
+
+# === GET KERNEL PARAMS ===
+get_kernel_params() {
+    local mnt="$1"
+    local config_file
+    config_file=$(find_config_file "$mnt") || true
+
+    if [ -n "$config_file" ]; then
         local params
         params=$(grep -E '^KERNEL_PARAMS=' "$config_file" 2>/dev/null | head -1 | cut -d'=' -f2- || true)
         # Bo cap ngoac kep/don (config duoc ghi dang KERNEL_PARAMS="..." hoac '...') va trim
@@ -541,6 +565,35 @@ HOOK_EOF
     log_ok "Pacman hook installed at $hook_file"
 }
 
+# === INSTALL UKI REBUILD HOOK ===
+# UKI mode: kernel da nam san trong ESP (EFI/Linux) nen chi can rebuild khi cap nhat
+install_uki_hook() {
+    local target_root="$1"
+
+    local hook_dir="$target_root/etc/pacman.d/hooks"
+    local hook_file="$hook_dir/calarch-uki.hook"
+    mkdir -p "$hook_dir"
+
+    cat > "$hook_file" << 'UKI_EOF'
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = linux
+Target = linux-zen
+Target = linux-lts
+Target = linux-hardened
+Target = intel-ucode
+Target = amd-ucode
+
+[Action]
+Description = Calarch: Rebuild unified kernel image (UKI)
+When = PostTransaction
+Exec = /bin/sh -c 'mkinitcpio -P'
+UKI_EOF
+    log_ok "UKI rebuild hook installed at $hook_file"
+}
+
 # === CHECK MODE ===
 check_status() {
     local mnt="$1"
@@ -654,12 +707,20 @@ main() {
         return 1
     fi
 
+    # REFIND_SYNC_ESP=false: giu refind_linux.conf truyen thong, khong sync kernel ra ESP
+    local rsync_cfg
+    rsync_cfg=$(get_refind_sync_esp "$MNT")
+    if [ "$rsync_cfg" = "false" ]; then
+        log_i "REFIND_SYNC_ESP=false trong calarch.conf — bo qua kernel sync (rEFInd se doc kernel truc tiep)"
+        return 0
+    fi
+
     # UKI mode: rEFInd tu dong tim UKI trong ESP, khong can sync kernel hay refind_linux.conf
     if [ -d "$boot_dir/EFI/Linux" ] && [ -n "$(find "$boot_dir/EFI/Linux" -maxdepth 1 -name '*.efi' -print -quit 2>/dev/null)" ]; then
         log_i "UKI detected at $boot_dir/EFI/Linux/ — rEFInd auto-detects UKI files"
         log_i "Skipping kernel sync and rEFInd entry generation"
-        log_i "Installing pacman hook..."
-        install_pacman_hook "$MNT"
+        log_i "Installing UKI rebuild hook..."
+        install_uki_hook "$MNT"
         log_ok "rEFInd sync complete (UKI mode)"
         return 0
     fi

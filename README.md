@@ -104,6 +104,7 @@ calarch/
 │   └── profiles.sh              Profile manager
 ├── assets/logo.svg
 ├── .github/workflows/
+│   ├── tests.yml
 │   ├── release.yml
 │   └── deploy-pages.yml
 ├── CONTRIBUTING.md

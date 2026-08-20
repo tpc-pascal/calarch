@@ -46,7 +46,7 @@ first_boot_mode() {
 }
 
 boot_guard() {
-    "$CORE" boot_check 2>/dev/null || true
+    bash "$CORE" boot_check 2>/dev/null || true
 }
 
 # --- Unified TUI menu ---
@@ -100,7 +100,7 @@ main_menu() {
 # --- CLI entry ---
 case "${1:-}" in
     --version|-v)
-        echo "calarch 1.0.14"
+        echo "calarch 1.0.15"
         exit 0
         ;;
     -m|--mode)

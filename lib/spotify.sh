@@ -105,10 +105,13 @@ SPICE_EOF
 
 toggle_adblock() {
     log_i "Toggle Spicetify adblock..."
-    if grep -q "adblock" "$HOME/.config/spicetify/config-xpui.ini" 2>/dev/null; then
-        spicetify config extensions adblock.js 2>/dev/null || true
-        spicetify apply 2>/dev/null && log_ok "Adblock toggled" || log_w "Failed"
+    local ini="$HOME/.config/spicetify/config-xpui.ini"
+    if grep -qE '^\s*extensions\s*=.*adblock' "$ini" 2>/dev/null; then
+        # Trang thai: DANG bat → tat
+        sed -i '/^\s*extensions\s*=/c\extensions = ' "$ini" 2>/dev/null || true
+        spicetify apply 2>/dev/null && log_ok "Adblock disabled" || log_w "Failed"
     else
+        # Trang thai: dang tat → bat
         spicetify config extensions adblock.js 2>/dev/null || true
         spicetify apply 2>/dev/null && log_ok "Adblock enabled" || log_w "Failed"
     fi

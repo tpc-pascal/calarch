@@ -44,7 +44,12 @@ has() { command -v "$1" &>/dev/null; }
 # ==================================================================
 super_on()     { pgrep -f "super-mode.sh" &>/dev/null; }
 affinity_on()  { pgrep -f "hyprland-event-monitor.sh" &>/dev/null; }
-eco_on()       { [ -f /sys/devices/platform/panasonic/eco_mode ] && [ "$(cat /sys/devices/platform/panasonic/eco_mode)" = "1" ]; }
+eco_on() {
+    [ -f /sys/devices/platform/panasonic/eco_mode ] || return 1
+    local v
+    v=$(cat /sys/devices/platform/panasonic/eco_mode 2>/dev/null) || v=$(sudo -n cat /sys/devices/platform/panasonic/eco_mode 2>/dev/null)
+    [ "$v" = "1" ] && return 0 || return 1
+}
 uv_on()        { has intel-undervolt && sudo intel-undervolt read 2>/dev/null | grep -qE ':\s*-[0-9]'; }
 rotate_on()    { systemctl is-active iio-sensor-proxy &>/dev/null; }
 touch_on()     { xinput list --name-only 2>/dev/null | grep -qi touchpad; }
@@ -169,17 +174,23 @@ toggle_affinity() {
 toggle_eco() {
     local p="/sys/devices/platform/panasonic/eco_mode" limit
     if [ ! -f "$p" ]; then log_w "Eco mode N/A"; return; fi
-    limit=$("$CORE" get ECO_CHARGE_LIMIT 2>/dev/null || echo "80")
+    limit=$(bash "$CORE" get ECO_CHARGE_LIMIT 2>/dev/null || echo "80")
     if eco_on; then echo 0 | sudo tee "$p" >/dev/null && log_ok "Eco OFF (100%)" || log_w "Eco OFF failed"
     else echo 1 | sudo tee "$p" >/dev/null && log_ok "Eco ON (${limit}%)" || log_w "Eco ON failed"; fi
 }
 toggle_uv() {
-    if uv_on; then log_w "Undervolt: reset can reboot"
-    elif has intel-undervolt; then
-      "$CORE" set UNDERVOLT_CPU "${UNDERVOLT_CPU:--50}" 2>/dev/null || log_w "Khong set duoc UNDERVOLT_CPU"
-      "$CORE" set UNDERVOLT_GPU "${UNDERVOLT_GPU:--20}" 2>/dev/null || log_w "Khong set duoc UNDERVOLT_GPU"
-      "$CORE" set UNDERVOLT_CACHE "${UNDERVOLT_CACHE:--50}" 2>/dev/null || log_w "Khong set duoc UNDERVOLT_CACHE"
-      log_ok "Undervolt applied via core.sh (safety active)"
+    if ! has intel-undervolt; then log_w "intel-undervolt chua cai (chay God-Mode step 4)"; return; fi
+    if uv_on; then
+        # TAT: dua cac offset ve 0 mV (gia tri khong am) roi apply
+        bash "$CORE" set UNDERVOLT_CPU 0 2>/dev/null || log_w "Khong set duoc UNDERVOLT_CPU"
+        bash "$CORE" set UNDERVOLT_GPU 0 2>/dev/null || log_w "Khong set duoc UNDERVOLT_GPU"
+        bash "$CORE" set UNDERVOLT_CACHE 0 2>/dev/null || log_w "Khong set duoc UNDERVOLT_CACHE"
+        log_ok "Undervolt OFF (0 mV) — da ap dung"
+    else
+        bash "$CORE" set UNDERVOLT_CPU "${UNDERVOLT_CPU:--50}" 2>/dev/null || log_w "Khong set duoc UNDERVOLT_CPU"
+        bash "$CORE" set UNDERVOLT_GPU "${UNDERVOLT_GPU:--20}" 2>/dev/null || log_w "Khong set duoc UNDERVOLT_GPU"
+        bash "$CORE" set UNDERVOLT_CACHE "${UNDERVOLT_CACHE:--50}" 2>/dev/null || log_w "Khong set duoc UNDERVOLT_CACHE"
+        log_ok "Undervolt applied via core.sh (safety active)"
     fi
 }
 toggle_rotate() {
@@ -192,6 +203,10 @@ toggle_rotate() {
     fi
 }
 toggle_touch() {
+    if [ "${XDG_SESSION_TYPE:-}" = "wayland" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
+        log_w "Touchpad toggle dung xinput (X11). Tren Wayland hay cau hinh trong Hyprland: input:touchpad"
+        return 0
+    fi
     local id
     id=$(xinput list | grep -i touchpad | grep -oP 'id=\K\d+' || echo "")
     [ -z "$id" ] && { log_w "No touchpad"; return; }
@@ -322,7 +337,7 @@ apply_tags() {
     local tags=("$@")
     for tag in "${tags[@]}"; do
         local want=0 cur=0
-        echo "$sel" | grep -q "$tag" && want=1
+        printf '%s\n' "$sel" | grep -qx "$tag" && want=1
         case "$tag" in
             super)   super_on && cur=1;;   affinity)affinity_on && cur=1;;
             eco)     eco_on && cur=1;;     uv)      uv_on && cur=1;;

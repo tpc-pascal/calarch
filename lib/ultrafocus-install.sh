@@ -41,6 +41,13 @@ try_catch() {
     fi
 }
 
+# Chay subscript voi pseudo-TTY: cac menu dung `read` can stdin that su (TTY)
+run_sub_script() {
+    local script="$1"; shift
+    local input="$1"
+    printf '%s' "$input" | script -qec "bash \"$SCRIPT_DIR/$script\"" /dev/null >/dev/null 2>&1 || true
+}
+
 install_base_pkgs() {
     log_header "INSTALL: Base packages"
     local pkgs=("neovim" "rofi" "mpv" "yt-dlp" "curl" "jq")
@@ -70,7 +77,7 @@ install_aur_pkgs() {
 
 setup_neovim() {
     log_header "SETUP: Neovim + LazyVim"
-    bash "$SCRIPT_DIR/neovim.sh" <<< $'[4]\n[B]' 2>/dev/null || true
+    run_sub_script "neovim.sh" $'[4]\n[B]'
 }
 
 setup_rofi() {
@@ -78,27 +85,27 @@ setup_rofi() {
     # Install rofi if not present
     command -v rofi &>/dev/null || try_catch "Install rofi" "sudo pacman -S --noconfirm rofi"
     # Setup theme
-    bash "$SCRIPT_DIR/launcher.sh" <<< $'[1]\n[B]' 2>/dev/null || true
+    run_sub_script "launcher.sh" $'[1]\n[B]'
 }
 
 setup_firefox() {
     log_header "SETUP: Firefox vertical tabs + privacy"
-    bash "$SCRIPT_DIR/firefox.sh" <<< $'[1]\n[2]\n[B]' 2>/dev/null || true
+    run_sub_script "firefox.sh" $'[1]\n[2]\n[B]'
 }
 
 setup_kitty_zsh() {
     log_header "SETUP: Kitty + Zsh"
-    bash "$SCRIPT_DIR/kitty-ultrafocus.sh" <<< $'[1]\n[2]\n[B]' 2>/dev/null || true
+    run_sub_script "kitty-ultrafocus.sh" $'[1]\n[2]\n[B]'
 }
 
 setup_spotify() {
     log_header "SETUP: Spotify + Spicetify"
-    bash "$SCRIPT_DIR/spotify.sh" <<< $'[2]\n[B]' 2>/dev/null || true
+    run_sub_script "spotify.sh" $'[2]\n[B]'
 }
 
 setup_emacs() {
     log_header "SETUP: Emacs + Org-mode"
-    bash "$SCRIPT_DIR/emacs.sh" <<< $'[2]\n[B]' 2>/dev/null || true
+    run_sub_script "emacs.sh" $'[2]\n[B]'
 }
 
 install_ultrafocus() {
@@ -123,16 +130,16 @@ install_ultrafocus() {
     setup_emacs
 
     # Config keys
-    "$CORE" set LAUNCHER_ENGINE "rofi" 2>/dev/null || true
-    "$CORE" set LAUNCHER_THEME "ultrafocus" 2>/dev/null || true
-    "$CORE" set FIREFOX_VTABS "yes" 2>/dev/null || true
-    "$CORE" set EDITOR_ENGINE "neovim" 2>/dev/null || true
-    "$CORE" set EDITOR_DISTRO "lazyvim" 2>/dev/null || true
-    "$CORE" set MEDIA_YT_PLAYER "mpv" 2>/dev/null || true
-    "$CORE" set MEDIA_QUALITY "1080p" 2>/dev/null || true
-    "$CORE" set SPOTIFY_THEME "dribbblish" 2>/dev/null || true
-    "$CORE" set SPOTIFY_ADBLOCK "yes" 2>/dev/null || true
-    "$CORE" set NOTES_ENGINE "emacs-org" 2>/dev/null || true
+    bash "$CORE" set LAUNCHER_ENGINE "rofi" 2>/dev/null || true
+    bash "$CORE" set LAUNCHER_THEME "ultrafocus" 2>/dev/null || true
+    bash "$CORE" set FIREFOX_VTABS "yes" 2>/dev/null || true
+    bash "$CORE" set EDITOR_ENGINE "neovim" 2>/dev/null || true
+    bash "$CORE" set EDITOR_DISTRO "lazyvim" 2>/dev/null || true
+    bash "$CORE" set MEDIA_YT_PLAYER "mpv" 2>/dev/null || true
+    bash "$CORE" set MEDIA_QUALITY "1080p" 2>/dev/null || true
+    bash "$CORE" set SPOTIFY_THEME "dribbblish" 2>/dev/null || true
+    bash "$CORE" set SPOTIFY_ADBLOCK "yes" 2>/dev/null || true
+    bash "$CORE" set NOTES_ENGINE "emacs-org" 2>/dev/null || true
 
     log_header "ULTRAFOCUS TOOLCHAIN INSTALLATION COMPLETE"
 }

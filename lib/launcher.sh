@@ -145,7 +145,7 @@ CONFIG_EOF
 setup_keybinds() {
     local hypr_conf="$HOME/.config/hypr/hyprland.conf"
     if [ -f "$hypr_conf" ]; then
-        if ! grep -q "SUPER, S, exec.*rofi" "$hypr_conf" 2>/dev/null; then
+        if ! grep -q "SUPER, Space, exec.*rofi" "$hypr_conf" 2>/dev/null; then
             cat >> "$hypr_conf" << 'BIND_EOF'
 
 # Ultrafocus: Rofi Launcher

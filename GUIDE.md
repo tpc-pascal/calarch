@@ -1,6 +1,6 @@
 # Hướng dẫn sử dụng calarch
 
-> Phiên bản mới nhất: v1.0.14 — God-Mode guided setup: yay, Hyprland, ZRAM, undervolt, thermal, super-mode
+> Phiên bản mới nhất: v1.0.15 — God-Mode guided setup: yay, Hyprland, ZRAM, undervolt, thermal, super-mode
 
 -----------------------------------------------------------------------
 
@@ -100,7 +100,7 @@ Chạy `bash start.sh` để mở menu chính:
 | 3 | Drive Manager — mount/unmount partitions |
 | 4 | Wallpaper Changer — chafa preview, set wallpaper |
 | 5 | Focus Mode — Pomodoro + site blocker |
-| 6 | Notes — Obsidian vault manager |
+| 6 | Notes — vault manager (theo `NOTES_ENGINE`) |
 | 7 | Games — minetest, assaultcube, megaglest |
 | 8 | rEFInd Sync — đồng bộ kernel ra ESP |
 | 9 | Profiles — lưu/nạp cấu hình |
@@ -119,7 +119,7 @@ Mọi công cụ đều mở được từ TUI (số tương ứng) hoặc chạ
 | Drive Manager | 3 | `lib/mount.sh` | Mount/unmount partition theo fstype |
 | Wallpaper Changer | 4 | `lib/wallpaper.sh` | Chafa preview, hyprpaper/swaybg/feh |
 | Focus Mode | 5 | `lib/focus.sh` | Pomodoro + website blocker |
-| Notes | 6 | `lib/notes.sh` | Obsidian vault manager |
+| Notes | 6 | `lib/notes.sh` | Notes vault manager (Obsidian/Logseq/Emacs/md theo `NOTES_ENGINE`) |
 | Games | 7 | `lib/games.sh` | minetest, assaultcube, megaglest |
 | rEFInd Sync | 8 | `lib/refind-sync.sh` | Đồng bộ kernel + entry + pacman hook ra ESP |
 | Profiles | 9 | `lib/profiles.sh` | Lưu/nạp profile config |
@@ -222,8 +222,13 @@ BLOCKER_SITES="facebook.com,twitter.com,..."
 KERNEL_PARAMS="nowatchdog processor.max_cstate=4 ..."
 WALLPAPER_DIR="$HOME/Pictures/wallpapers"
 WALLPAPER_ENGINE="hyprpaper"
-REFIND_SYNC_ESP="true"
+NOTES_ENGINE="emacs-org"           # obsidian | logseq | emacs-org | vi/vim/nvim
+REFIND_SYNC_ESP="true"             # false = bỏ qua kernel sync ra ESP (rEFInd đọc kernel trực tiếp)
 ```
+
+> **REFIND_SYNC_ESP=false:** `lib/refind-sync.sh` sẽ bỏ qua toàn bộ bước đồng bộ
+> kernel ra ESP (kể cả khi /boot nằm trên Btrfs+zstd). Chỉ dùng khi bạn chắc chắn
+> rEFInd đọc được kernel trực tiếp (vd /boot là FAT32/ESP).
 
 -----------------------------------------------------------------------
 

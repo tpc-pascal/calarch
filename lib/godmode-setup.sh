@@ -96,6 +96,7 @@ EOF
         return 1
     fi
     local conf="$HOME/.config/hypr/hyprland.conf"
+    chmod +x "$SCRIPT_DIR/hyprland-event-monitor.sh" 2>/dev/null || true
     if [ -f "$conf" ] && ! grep -q "hyprland-event-monitor" "$conf" 2>/dev/null; then
         echo "exec-once = ${SCRIPT_DIR}/hyprland-event-monitor.sh" >> "$conf"
     fi
@@ -171,6 +172,29 @@ step_tweaks() {
     sudo systemctl enable reflector.timer 2>/dev/null || true
     local jconf="/etc/systemd/journald.conf"
     grep -q "^SystemMaxUse" "$jconf" 2>/dev/null || echo "SystemMaxUse=100M" | sudo tee -a "$jconf" >/dev/null
+
+    # Wire godmode auto-maintenance (service + timer + scripts)
+    if [ -f "$SCRIPT_DIR/godmode-cleanup.sh" ]; then
+        sudo install -m 755 "$SCRIPT_DIR/godmode-cleanup.sh" /usr/local/bin/godmode-cleanup.sh 2>/dev/null || true
+    fi
+    if [ -f "$SCRIPT_DIR/godmode-recovery.sh" ]; then
+        sudo install -m 755 "$SCRIPT_DIR/godmode-recovery.sh" /usr/local/bin/godmode-recovery.sh 2>/dev/null || true
+    fi
+    if [ -f "$SCRIPT_DIR/godmode-clean.service" ] && [ -f "$SCRIPT_DIR/godmode-clean.timer" ]; then
+        sudo install -m 644 "$SCRIPT_DIR/godmode-clean.service" /etc/systemd/system/godmode-clean.service 2>/dev/null || true
+        sudo install -m 644 "$SCRIPT_DIR/godmode-clean.timer" /etc/systemd/system/godmode-clean.timer 2>/dev/null || true
+        sudo systemctl daemon-reload 2>/dev/null || true
+        sudo systemctl enable godmode-clean.timer 2>/dev/null || true
+    fi
+    # Ollama drop-in (gioi han CPU/memory neu co ollama)
+    if [ -f "$SCRIPT_DIR/ollama-override.conf" ]; then
+        sudo mkdir -p /etc/systemd/system/ollama.service.d 2>/dev/null || true
+        sudo install -m 644 "$SCRIPT_DIR/ollama-override.conf" /etc/systemd/system/ollama.service.d/ollama-override.conf 2>/dev/null || true
+        sudo systemctl daemon-reload 2>/dev/null || true
+        if systemctl is-active ollama &>/dev/null; then
+            sudo systemctl restart ollama 2>/dev/null || true
+        fi
+    fi
     return 0
 }
 

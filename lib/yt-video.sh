@@ -35,13 +35,13 @@ play_url() {
     [ -z "$url" ] && return
     log_i "Dang phat: $url"
     clear
-    # Chuyen "720p"/"2160p" -> 720/2160; "best" -> khong loc do cao
-    local height_filter=""
+    # Chuyen "720p"/"2160p" -> 720/2160; "best" -> video+audio chat luong cao nhat
+    local ytdl_format="bestvideo+bestaudio/best"
     if [[ "$quality" =~ ^[0-9]+ ]]; then
-        height_filter="bestvideo[height<=?${BASH_REMATCH[0]}]+"
+        ytdl_format="bestvideo[height<=?${BASH_REMATCH[0]}]+bestaudio/best"
     fi
     mpv --no-input-default-bindings \
-        --ytdl-format="${height_filter}bestaudio/best" \
+        --ytdl-format="$ytdl_format" \
         --term-status-msg="" \
         --osd-level=0 \
         "$url" 2>/dev/null || mpv "$url" 2>/dev/null

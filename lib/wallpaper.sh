@@ -231,7 +231,7 @@ set_wallpaper() {
             esac
             if $ok && [ -n "$detected_engine" ] && [ -f "$CONFIG_FILE" ]; then
                 WALLPAPER_ENGINE="$detected_engine"
-                "$CORE" set WALLPAPER_ENGINE "$detected_engine" 2>/dev/null || true
+                bash "$CORE" set WALLPAPER_ENGINE "$detected_engine" 2>/dev/null || true
             fi
             ;;
     esac
@@ -325,7 +325,7 @@ main_menu() {
                     "feh"       "X11 (legacy)") || continue
                 if [ -n "$eng" ]; then
                     WALLPAPER_ENGINE="$eng"
-                    "$CORE" set WALLPAPER_ENGINE "$eng" 2>/dev/null || true
+                    bash "$CORE" set WALLPAPER_ENGINE "$eng" 2>/dev/null || true
                     tui_msg "ENGINE" "Engine changed to: ${eng}" 6 40
                 fi
                 ;;

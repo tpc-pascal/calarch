@@ -260,6 +260,8 @@ post_install() {
             fi
         fi
     fi
+    # Dam bao exec bit cho cac script (lan dau cai / he thong cu khong co mode 755)
+    chmod +x "$user_home/calarch"/*.sh "$user_home/calarch"/lib/*.sh 2>/dev/null || true
 
     if [ "$live_mode" -eq 1 ]; then
         if [ -d "$user_home/calarch" ]; then

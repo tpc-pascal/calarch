@@ -15,24 +15,50 @@ log_e()  { echo -e "${RED}[EE]${R} $*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/tui.sh"
+CONFIG_FILE="$SCRIPT_DIR/../calarch.conf"
+source "$SCRIPT_DIR/config-load.sh"
+calarch_load_config "$CONFIG_FILE"
 
 VAULT_DIR="$HOME/notes/obsidian"
+NOTES_ENGINE="${NOTES_ENGINE:-obsidian}"
 
 open_vault() {
-    if ! command -v obsidian &>/dev/null; then
-        log_e "Obsidian chua cai. Cai bang: sudo pacman -S obsidian"
-        read -r -p "Press Enter..."
-        return 1
-    fi
-    if [ -d "$VAULT_DIR" ]; then
-        nohup obsidian "$VAULT_DIR" >/dev/null 2>&1 &
-        log_ok "Obsidian dang mo vault: $VAULT_DIR"
-    else
-        log_i "Vault chua ton tai. Tao moi..."
-        mkdir -p "$VAULT_DIR"
-        nohup obsidian "$VAULT_DIR" >/dev/null 2>&1 &
-        log_ok "Da tao va mo vault: $VAULT_DIR"
-    fi
+    mkdir -p "$VAULT_DIR"
+    case "$NOTES_ENGINE" in
+        emacs-org|emacs)
+            if ! command -v emacs &>/dev/null; then
+                log_e "Emacs chua cai. Cai bang: sudo pacman -S emacs"
+                read -r -p "Press Enter..."
+                return 1
+            fi
+            nohup emacs "$VAULT_DIR" >/dev/null 2>&1 &
+            log_ok "Emacs dang mo vault: $VAULT_DIR"
+            ;;
+        logseq)
+            if ! command -v logseq &>/dev/null; then
+                log_e "Logseq chua cai. Cai bang: sudo pacman -S logseq"
+                read -r -p "Press Enter..."
+                return 1
+            fi
+            nohup logseq "$VAULT_DIR" >/dev/null 2>&1 &
+            log_ok "Logseq dang mo vault: $VAULT_DIR"
+            ;;
+        vi|vim|nvim)
+            local editor_cmd="$NOTES_ENGINE"
+            [ ! -f "$VAULT_DIR/index.md" ] && echo "# Notes" > "$VAULT_DIR/index.md"
+            nohup "$editor_cmd" "$VAULT_DIR/index.md" >/dev/null 2>&1 &
+            log_ok "$editor_cmd dang mo vault: $VAULT_DIR"
+            ;;
+        obsidian|*)
+            if ! command -v obsidian &>/dev/null; then
+                log_e "Obsidian chua cai. Cai bang: sudo pacman -S obsidian"
+                read -r -p "Press Enter..."
+                return 1
+            fi
+            nohup obsidian "$VAULT_DIR" >/dev/null 2>&1 &
+            log_ok "Obsidian dang mo vault: $VAULT_DIR"
+            ;;
+    esac
     sleep 2
 }
 
@@ -69,7 +95,9 @@ list_vaults() {
     clear
     echo -e "${MG}=== OBSIDIAN VAULTS ===${R}"
     if [ -d "$HOME/notes" ]; then
+        local d
         for d in "$HOME/notes"/*/; do
+            [ -d "$d" ] || continue
             local name=$(basename "$d")
             local count=$(find "$d" -name '*.md' 2>/dev/null | wc -l)
             echo -e "  ${CY}$name${R} (${count} notes)"
