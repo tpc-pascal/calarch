@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.15"
+VERSION="1.0.16"
 
 # --- Colors ---
 R='\033[0m'; B='\033[1m'
@@ -276,11 +276,12 @@ try_archinstall() {
     echo "║  de calarch tu dong chay post-install.             ║"
     echo "╚══════════════════════════════════════════════════════╝"
     echo ""
-    echo "KHUYEN NGHI trong archinstall (cho newbie):"
+    echo "KHUYEN NGHI CF-XZ6 trong archinstall:"
     echo "  • Network     : enable + chon NetworkManager (BAT BUOC truoc khi cai)"
-    echo "  • Disk        : chon dung o (canh bao xoa toan bo du lieu)"
-    echo "  • Filesystem  : Btrfs (calarch toi uu)"
-    echo "  • Bootloader  : rEFInd (de nhat) hoac systemd-boot"
+    echo "  • Disk        : CF-XZ6: sda1 ESP 512MiB giu nguyen (/boot), sda9 Btrfs 68GB 6 subvol @/@home/@snapshots/@cache/@log/@pkg compress=zstd"
+    echo "  • Filesystem  : Btrfs (CF-XZ6 toi uu; ext4 van boot duoc)"
+    echo "  • Bootloader  : rEFInd + uki:true (CF-XZ6 /boot la ESP FAT32)"
+    echo "  • Btrfs Snapshots: Da tao @snapshots -> chon None (calarch tu tao snapper sau); chon Snapper -> xoa @snapshots khoi danh sach"
     echo "  • User        : BAT BUOC tao user thuong (khong chi root)"
     echo "  • Ket thuc    : chon Exit (KHONG chon Reboot)"
     echo ""
@@ -288,11 +289,33 @@ try_archinstall() {
     read -r
 
     archinstall || {
-        warn "archinstall failed or was cancelled"
-        echo -n "Tiep tuc bang calarch manual? [Y/n]: "
+        # CF-XZ6: bat loi Snapper @snapshots trung (errno 17) — log archinstall
+        local snapper_hit=0
+        if grep -q "snapper.*File exists\|errno:17.*snapshots\|Could not setup Btrfs snapper" /var/log/archinstall/install.log 2>/dev/null; then
+            snapper_hit=1
+            err "archinstall loi Snapper: @snapshots da ton tai (errno 17)"
+            echo -e "${YEL}CF-XZ6 fix:${R} ban da tao subvol @snapshots va chon Btrfs Snapshots=Snapper -> trung nhau."
+            echo "  Cach 1 (khuyen nghi): chay lai archinstall -> Manual partitioning -> sda9 -> xoa @snapshots khoi danh sach HOAC chon Btrfs Snapshots=None"
+            echo "  Cach 2: tu sua: umount -R /mnt; rmdir /mnt/.snapshots 2>/dev/null; mkdir -p /mnt/.snapshots; roi chay lai bootstrap"
+            echo "  Xem: grep -A2 snapper /var/log/archinstall/install.log | tail"
+        fi
+        if [ "$snapper_hit" -eq 0 ]; then
+            warn "archinstall failed or was cancelled"
+        fi
+        if [ "$snapper_hit" -eq 1 ]; then
+            echo -n "Chay lai archinstall ngay voi fix tren? [Y/n]: "
+            local ans2
+            read -r ans2
+            if [[ ! "$ans2" =~ ^[nN] ]]; then
+                # cleanup mount truoc khi thu lai (CF-XZ6 dual-boot, khong wipe disk)
+                umount -R /mnt 2>/dev/null || true
+                try_archinstall && return 0
+            fi
+        fi
+        echo -n "Tiep tuc bang calarch manual (WIPE DISK) ? [y/N]: "
         local ans
         read -r ans
-        [[ "$ans" =~ ^[nN] ]] && exit 1
+        [[ "$ans" =~ ^[yY] ]] || exit 1
         return 1
     }
 

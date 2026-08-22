@@ -1,14 +1,18 @@
-# Hướng dẫn sử dụng calarch
+# Hướng dẫn sử dụng calarch — Panasonic CF-XZ6 chuyên biệt
 
-> Phiên bản mới nhất: v1.0.15 — God-Mode guided setup: yay, Hyprland, ZRAM, undervolt, thermal, super-mode
+> ⚠️ **Repo này chỉ hỗ trợ Panasonic CF-XZ6 (CFXZ6-1 / i5-7300U / HD Graphics 620). Không khuyến nghị dùng trên máy khác.**
+
+> Phiên bản mới nhất: v1.0.16 — CF-XZ6 only, snapper @snapshots fix, God-Mode guided setup
 
 -----------------------------------------------------------------------
 
 ## Phần 1 — Cài đặt
 
-### Yêu cầu
+### Yêu cầu — CF-XZ6
 
-- Panasonic CF-XZ6 (hoặc laptop x86_64 khác)
+- **Panasonic CF-XZ6 (CFXZ6-1) duy nhất** — i5-7300U / HD Graphics 620 / 8GB RAM / 244GB GPT
+  (đã test: `sda1` ESP 512MiB `C12A7328` giữ nguyên dual-boot Windows, `sda9` Btrfs 68GB `@/@home/@snapshots/@cache/@log/@pkg` `compress=zstd`)
+  Không khuyến nghị dùng trên laptop khác (undervolt, thermal, kernel params đã tune cho 7300U/HD620).
 - 20 GB+ dung lượng trống, USB 4 GB+
 - UEFI boot mode
 - Arch ISO (tải từ [archlinux.org](https://archlinux.org/download/))
@@ -52,15 +56,17 @@ bash <(curl -s https://tpc-pascal.github.io/calarch/install)
 | Network | **Enable + NetworkManager** | Bắt buộc trước khi cài, nếu không mirrors không tải được |
 | Disk | Đúng ổ đĩa mình muốn | archinstall cảnh báo xoá toàn bộ dữ liệu |
 | Filesystem | **Btrfs** | calarch tối ưu cho Btrfs; ext4/xfs vẫn cài được (boot bình thường) |
-| Bootloader | **rEFInd** (dễ nhất) hoặc systemd-boot | GRUB cũng được |
+| Bootloader | **rEFInd** (CF-XZ6 dùng `ukі:true`, `/boot` = ESP `sda1` 512MiB) | systemd-boot cũng được |
+| Btrfs Snapshots | **None** nếu bạn đã tự tạo subvol `@snapshots` (6 subvol CF-XZ6) — calarch tự tạo snapper sau | Chọn **Snapper** → **xoá** `@snapshots` khỏi danh sách subvol trước khi cài |
 | User | **Phải tạo user thường** (không chỉ root) | Quên → calarch hỏi chạy lại hoặc tạo giúp |
 | Kết thúc | **Exit** (KHÔNG chọn Reboot) | Reboot sẽ thoát luôn khỏi quy trình |
 
-> **Ghi chú:**
+> **Ghi chú CF-XZ6:**
 > - Hostname, user và password do **bạn tự đặt trong archinstall** — calarch không ghi đè
-> - Disk cũng do bạn tự chọn trong archinstall
-> - Console font mặc định `ter-132n` (phù hợp HiDPI), có thể chọn font khác khi chạy bootstrap
-> - Kernel params tinh chỉnh (i915, mitigations...) áp dụng cho **mọi bootloader** ngay lúc cài
+> - Disk CF-XZ6 mặc định: `sda1` ESP 512MiB giữ nguyên (dual-boot Windows), `sda9` Btrfs 68GB CF-XZ6 preset 6 subvol `@/@home/@snapshots/@cache/@log/@pkg` `compress=zstd`
+> - **Snapper:** đã tự tạo `@snapshots` → chọn **Btrfs Snapshots = None**; nếu chọn **Snapper** trong archinstall thì xoá `@snapshots` khỏi danh sách trước khi cài (calarch sẽ tự `snapper create-config` sau).
+> - Console font mặc định `ter-132n` (phù hợp HiDPI CF-XZ6), có thể chọn font khác khi chạy bootstrap
+> - Kernel params CF-XZ6 (`i915.enable_fbc/psr/rc6`, `mitigations=off`, `pcie_aspm=force` cho HD620/7300U) áp dụng cho **mọi bootloader** ngay lúc cài
 > - Nếu chọn filesystem không phải Btrfs, calarch **tự thích nghi** (không còn ép `rootflags=subvol=@`)
 
 -----------------------------------------------------------------------
