@@ -4,8 +4,10 @@
   <img src="assets/logo.svg" alt="calarch logo" width="200">
 </p>
 
-> Thiết lập Arch Linux toàn diện cho Panasonic CF-XZ6: dual boot với Windows,
-> Dynamic CPU Affinity, Thermal tuning, Btrfs + ZRAM, Super Mode daemon.
+> ⚠️ **Chỉ dành cho Panasonic CF-XZ6 (CFXZ6-1 / i5-7300U / HD Graphics 620)** — không hỗ trợ laptop khác.
+
+> Thiết lập Arch Linux chuyên biệt cho CF-XZ6: dual boot với Windows (giữ ESP `sda1` 512MiB),
+> Dynamic CPU Affinity, Thermal tuning (undervolt -50/-20/-50mV cho 7300U), Btrfs + ZRAM, Super Mode daemon.
 
 ------------------------------------------------------------------------
 
@@ -73,8 +75,9 @@ calarch/
 │   ├── tui.sh                   TUI engine (gum)
 │   ├── core.sh                  Config I/O + Safety + Profile
 │   ├── config-load.sh           Config loader cho các script con
-│   ├── post-install.sh          Post-install setup (+ fix-partuuid, refind)
-│   ├── godmode-setup.sh         God-Mode guided setup (8 bước, idempotent)
+│   ├── post-install.sh          Post-install setup (+ fix-partuuid, refind, CF-XZ6 snapper fix)
+│   ├── fix-snapper.sh           Snapper @snapshots conflict recovery (CF-XZ6)
+│   ├── godmode-setup.sh         God-Mode guided setup (8 bước, idempotent, CF-XZ6)
 │   ├── godmode-cleanup.sh       Auto-maintenance (journal, cache, snapper)
 │   ├── godmode-recovery.sh      Recovery & fallback handler
 │   ├── system.sh                System monitor

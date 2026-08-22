@@ -1,4 +1,6 @@
-# Hướng dẫn đóng góp (Contributing Guidelines)
+# Hướng dẫn đóng góp (Contributing Guidelines) — CF-XZ6 only
+
+> ⚠️ **calarch hiện chuyên biệt cho Panasonic CF-XZ6 (CFXZ6-1).** Mọi PR/tính năng generic cho laptop khác sẽ không được nhận — vui lòng giữ scope CF-XZ6.
 
 Vui lòng đọc kỹ các hướng dẫn dưới đây trước khi bắt đầu đóng góp.
 
@@ -45,16 +47,17 @@ bash lib/core.sh get KERNEL_PARAMS  # Đọc config
 ## 4. Cấu trúc thư mục
 
 ```
-calarch/
-├── bootstrap.sh                 # Bootstrap installer — archinstall TUI + calarch post-install
+calarch/  # CF-XZ6 only — Panasonic CF-XZ6 (CFXZ6-1)
+├── bootstrap.sh                 # Bootstrap installer — archinstall TUI + calarch post-install (CF-XZ6 guard snapper)
 ├── start.sh                     # Unified TUI — entry point duy nhất
 ├── make.sh                      # Builder
-├── lib/                         # Thư viện chính
+├── lib/                         # Thư viện chính (CF-XZ6 tuned)
 │   ├── tui.sh                   # TUI engine (gum)
 │   ├── core.sh                  # Config I/O + Safety + Profile
 │   ├── config-load.sh           # Config loader
-│   ├── post-install.sh          # Post-install setup
-│   ├── godmode-setup.sh         # God-Mode guided setup (8 bước, idempotent)
+│   ├── post-install.sh          # Post-install setup (CF-XZ6 @snapshots + snapper fix)
+│   ├── fix-snapper.sh           # Snapper @snapshots conflict recovery (CF-XZ6)
+│   ├── godmode-setup.sh         # God-Mode guided setup (8 bước, idempotent, CF-XZ6)
 │   ├── system.sh                # System monitor
 │   ├── settings.sh              # Settings panel
 │   ├── mount.sh                 # Drive manager
@@ -75,8 +78,9 @@ calarch/
 │   ├── dashboard.sh             # Legacy dashboard
 │   └── ... (các script khác)
 ├── tests/                       # Bats test suite (bash tests/run.sh)
-├── calarch.conf                 # Config trung tâm
+├── calarch.conf                 # Config trung tâm (CF-XZ6 tuned i5-7300U/HD620)
 ├── .github/workflows/
+│   ├── tests.yml
 │   ├── release.yml
 │   └── deploy-pages.yml
 ```
@@ -115,7 +119,7 @@ Sửa đồng bộ **3 chỗ**:
 - `start.sh` → `echo "calarch <version>"` (dòng ~103)
 - `GUIDE.md` → dòng tagline "Phiên bản mới nhất: v<version>" (dòng 3)
 
-Ví dụ: v1.0.13 → v1.0.14 sửa cả `bootstrap.sh:15`, `start.sh:103`, `GUIDE.md:3`.
+Ví dụ: v1.0.15 → v1.0.16 sửa cả `bootstrap.sh:15`, `start.sh:103`, `GUIDE.md:3`.
 
 ---
 

@@ -100,7 +100,7 @@ main_menu() {
 # --- CLI entry ---
 case "${1:-}" in
     --version|-v)
-        echo "calarch 1.0.15"
+        echo "calarch 1.0.16"
         exit 0
         ;;
     -m|--mode)

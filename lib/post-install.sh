@@ -195,6 +195,21 @@ post_install() {
         fi
     fi
 
+    # CF-XZ6: sua snapper @snapshots trung (archinstall errno 17) — idempotent
+    if [ -f "$LIB_DIR/fix-snapper.sh" ]; then
+        bash "$LIB_DIR/fix-snapper.sh" "$mnt" 2>/dev/null || log_warn "fix-snapper failed (non-fatal)"
+    else
+        # fallback inline neu thieu file (khi chay tu bundle cu)
+        if [ ! -f "${mnt:-/}etc/snapper/configs/root" ] && [ -d "${mnt:-/}.snapshots" ]; then
+            if command -v arch-chroot &>/dev/null && [ -n "$mnt" ]; then
+                umount "$mnt/.snapshots" 2>/dev/null || true
+                rmdir "$mnt/.snapshots" 2>/dev/null || true
+                mkdir -p "$mnt/.snapshots" 2>/dev/null || true
+                arch-chroot "$mnt" snapper --no-dbus -c root create-config / 2>/dev/null || arch-chroot "$mnt" snapper --no-dbus -c root create-config --no-create-subvolume / 2>/dev/null || true
+            fi
+        fi
+    fi
+
     [ -n "$mnt" ] && patch_fstab_compression "$mnt"
 
     local kparams
