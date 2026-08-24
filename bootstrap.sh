@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.16"
+VERSION="1.0.17"
 
 # --- Colors ---
 R='\033[0m'; B='\033[1m'

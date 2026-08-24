@@ -2,7 +2,7 @@
 
 > ⚠️ **Repo này chỉ hỗ trợ Panasonic CF-XZ6 (CFXZ6-1 / i5-7300U / HD Graphics 620). Không khuyến nghị dùng trên máy khác.**
 
-> Phiên bản mới nhất: v1.0.16 — CF-XZ6 only, snapper @snapshots fix, God-Mode guided setup
+> Phiên bản mới nhất: v1.0.17 — CF-XZ6 only, GUIDE 100% snapper troubleshooting, rotator/stylus, uki/rEFInd/TUI fixes
 
 -----------------------------------------------------------------------
 
@@ -56,7 +56,7 @@ bash <(curl -s https://tpc-pascal.github.io/calarch/install)
 | Network | **Enable + NetworkManager** | Bắt buộc trước khi cài, nếu không mirrors không tải được |
 | Disk | Đúng ổ đĩa mình muốn | archinstall cảnh báo xoá toàn bộ dữ liệu |
 | Filesystem | **Btrfs** | calarch tối ưu cho Btrfs; ext4/xfs vẫn cài được (boot bình thường) |
-| Bootloader | **rEFInd** (CF-XZ6 dùng `ukі:true`, `/boot` = ESP `sda1` 512MiB) | systemd-boot cũng được |
+| Bootloader | **rEFInd** (CF-XZ6 dùng `uki:true`, `/boot` = ESP `sda1` 512MiB) | systemd-boot cũng được |
 | Btrfs Snapshots | **None** nếu bạn đã tự tạo subvol `@snapshots` (6 subvol CF-XZ6) — calarch tự tạo snapper sau | Chọn **Snapper** → **xoá** `@snapshots` khỏi danh sách subvol trước khi cài |
 | User | **Phải tạo user thường** (không chỉ root) | Quên → calarch hỏi chạy lại hoặc tạo giúp |
 | Kết thúc | **Exit** (KHÔNG chọn Reboot) | Reboot sẽ thoát luôn khỏi quy trình |
@@ -113,6 +113,7 @@ Chạy `bash start.sh` để mở menu chính:
 | P | Post-Install Setup — chạy sau khi cài Arch (một lần) |
 | G | God-Mode Setup — yay, Hyprland, ZRAM, undervolt, thermal, super-mode |
 | S | Safety Engine — grace period, undo, history |
+| Q | Thoát |
 
 ### Các công cụ chi tiết
 
@@ -139,6 +140,8 @@ Mọi công cụ đều mở được từ TUI (số tương ứng) hoặc chạ
 | Emacs | — | `lib/emacs.sh` | Emacs + Org-mode + org-roam |
 | Firefox Config | — | `lib/firefox.sh` | user.js privacy + Sidebery vertical tabs |
 | Launcher | — | `lib/launcher.sh` | Rofi Ultrafocus theme |
+| CF-XZ6 Rotator | — | `lib/cf-xz6-rotator.sh` | Xoay màn hình CF-XZ6 (cảm biến gia tốc) |
+| CF-XZ6 Stylus | — | `lib/cfxz6-stylus-calibrate.sh` | Hiệu chuẩn bút stylus CF-XZ6 (xsetwacom trim, `grep -i unallocated`) |
 | Web Dashboard | — | `python3 lib/web.sh` | HTTP server localhost:8765 (config/status API) |
 
 > **Anime Player (magnet):** khi chọn file từ Nyaa.si, magnet được phát qua
@@ -192,7 +195,8 @@ sudo bash lib/refind-sync.sh       # Đồng bộ kernel ra ESP
 | AMD CPU | Tự động copy amd-ucode |
 | Nhiều kernels | Sync tất cả (linux, linux-zen, linux-lts, linux-hardened) |
 | ESP sắp đầy | Kiểm tra dung lượng trước khi copy |
-| **UKI mode** | Phát hiện UKI → skip kernel sync + entry, chỉ cài hook |
+| `REFIND_SYNC_ESP=false` | Bỏ qua toàn bộ sync (kể cả Btrfs+zstd) — chỉ khi `/boot` là ESP và rEFInd đọc kernel trực tiếp |
+| **UKI mode** | Phát hiện UKI → skip kernel sync + entry, chỉ cài hook `mkinitcpio -P` |
 
 > **UKI Mode:** rEFInd tự dò file `.efi` trong ESP — bỏ qua copy kernel/entry,
 > chỉ cài pacman hook rebuild UKI sau mỗi kernel update.
@@ -235,6 +239,8 @@ REFIND_SYNC_ESP="true"             # false = bỏ qua kernel sync ra ESP (rEFInd
 > **REFIND_SYNC_ESP=false:** `lib/refind-sync.sh` sẽ bỏ qua toàn bộ bước đồng bộ
 > kernel ra ESP (kể cả khi /boot nằm trên Btrfs+zstd). Chỉ dùng khi bạn chắc chắn
 > rEFInd đọc được kernel trực tiếp (vd /boot là FAT32/ESP).
+
+> **Tests:** `bash tests/run.sh` — chạy shellcheck + `bash -n` + bats + smoke trong container `archlinux` (kích hoạt mỗi push/PR qua `.github/workflows/tests.yml`).
 
 -----------------------------------------------------------------------
 
@@ -326,6 +332,26 @@ bash ~/calarch/start.sh                    # rồi chọn G
 
 Nếu installer chết giữa chừng (lỗi download), check mạng rồi thử lại. Desktop
 vẫn vào được bằng bất kỳ WM/DE nào bạn cài sau; calarch không ép buộc Hyprland.
+
+### Archinstall lỗi snapper (errno:17 File exists) — CF-XZ6
+
+Bạn tạo subvol `@snapshots` trong manual partitioning đồng thời chọn **Btrfs Snapshots = Snapper** trong archinstall → lỗi:
+
+```
+btrfs_util_create_subvolume_fd() failed, errno:17 (File exists)
+Creating config failed (creating btrfs subvolume .snapshots failed since it already exists).
+DiskError: Could not setup Btrfs snapper
+```
+
+**Khắc phục (không cần cài lại từ đầu):**
+1. **Cách 1 — khuyến nghị:** chạy lại archinstall → Manual partitioning → `sda9` → **xoá** `@snapshots` khỏi danh sách subvol **HOẶC** giữ `@snapshots` và chọn **Btrfs Snapshots = None** (calarch tự `snapper create-config` sau). Bootstrap v1.0.16+ tự bắt log và hỏi chạy lại ngay.
+2. **Cách 2 — sửa tại chỗ:** từ `archiso` (vẫn mount `/mnt`):
+   ```bash
+   bash lib/fix-snapper.sh /mnt
+   bash lib/post-install.sh post-install /mnt
+   # thủ công: umount /mnt/.snapshots; rmdir /mnt/.snapshots; mkdir /mnt/.snapshots; arch-chroot /mnt snapper -c root create-config /
+   ```
+   Kiểm tra: `grep snapper /var/log/archinstall/install.log | tail` và `btrfs subvolume list /mnt | grep snapshots`
 
 ### Kiểm tra god-mode sau khi xong
 
