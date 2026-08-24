@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.17"
+VERSION="1.0.18"
 
 # --- Colors ---
 R='\033[0m'; B='\033[1m'
@@ -206,11 +206,11 @@ prompt_identity() {
 prompt_font() {
     [ "$AUTO" -eq 1 ] && return
     echo ""
-    echo "Console font (larger = more readable on HiDPI):"
-    echo "  1) ter-132n (24pt) [recommended]"
+    echo "Console font CF-XZ6 HiDPI (larger = readable, small = dau mat):"
+    echo "  1) ter-132n (24pt) [CF-XZ6 khuyen nghi — BAT BUOC cho HiDPI]"
     echo "  2) ter-124n (21pt)"
     echo "  3) ter-116n (18pt)"
-    echo "  4) Keep default (8x16, small)"
+    echo "  4) Keep default (8x16, NHO — se dau mat tren CF-XZ6)"
     echo -n "Choose [1]: "
     local input
     read -r input
@@ -218,7 +218,18 @@ prompt_font() {
         1) CONSOLE_FONT="ter-132n" ;;
         2) CONSOLE_FONT="ter-124n" ;;
         3) CONSOLE_FONT="ter-116n" ;;
-        4) CONSOLE_FONT="" ;;
+        4)
+            echo -e "${YEL}Ban chon Keep default (8x16) — chu rat nho tren CF-XZ6 HiDPI, de dau mat.${R}"
+            echo -n "Ban chac giu default8x16 (chu nho)? [y/N]: "
+            local confirm
+            read -r confirm
+            if [[ "$confirm" =~ ^[yY] ]]; then
+                CONSOLE_FONT=""
+            else
+                CONSOLE_FONT="ter-132n"
+                echo "Da doi ve ter-132n (CF-XZ6)."
+            fi
+            ;;
         *) CONSOLE_FONT="ter-132n" ;;
     esac
 }
@@ -282,7 +293,7 @@ try_archinstall() {
     echo "  • Filesystem  : Btrfs (CF-XZ6 toi uu; ext4 van boot duoc)"
     echo "  • Bootloader  : rEFInd + uki:true (CF-XZ6 /boot la ESP FAT32)"
     echo "  • Btrfs Snapshots: Da tao @snapshots -> chon None (calarch tu tao snapper sau); chon Snapper -> xoa @snapshots khoi danh sach"
-    echo "  • User        : BAT BUOC tao user thuong (khong chi root)"
+    echo "  • User        : BAT BUOC tao 1 user thuong (vd pascal) + password — KHONG chi dat root password (root-only se phai login root, kho hieu)"
     echo "  • Ket thuc    : chon Exit (KHONG chon Reboot)"
     echo ""
     echo -n "Nhan Enter de mo archinstall... "
@@ -364,8 +375,9 @@ validate_archinstall_system() {
     local u
     u=$(awk -F: '$3>=1000 && $3!=65534 {print $1; exit}' /mnt/etc/passwd 2>/dev/null || echo "")
     if [ -z "$u" ]; then
-        warn "CHUA tao user thuong (uid>=1000) trong archinstall."
-        echo -n "Chay lai archinstall de tao user [Y], calarch tao giup [c], hay thoat [n]? [Y/c/n]: "
+        warn "CHUA tao user thuong (uid>=1000) — ban chi dat root password (root-only, KHONG khuyen dung, kho hieu, God-Mode se nam o /root)."
+        echo "Khuyen: tao 1 user thuong (vd pascal) de ~/calarch o /home, dang nhap de hieu."
+        echo -n "Chay lai archinstall de tao user [Y - khuyen nghi], calarch tao giup [c - it khuyen], hay thoat [n]? [Y/c/n]: "
         local choice
         read -r choice
         case "$choice" in
@@ -571,7 +583,16 @@ HEOF
     chmod 440 /etc/sudoers.d/99-wheel
 fi
 
-[ -n "${CONSOLE_FONT}" ] && ! grep -q "^FONT=" /etc/vconsole.conf 2>/dev/null && echo "FONT=${CONSOLE_FONT}" >> /etc/vconsole.conf || true
+# CF-XZ6 HiDPI: ep ter-132n, ghi de default8x16 (chu nho dau mat)
+if [ -n "${CONSOLE_FONT}" ]; then
+    if grep -q "^FONT=default8x16" /etc/vconsole.conf 2>/dev/null; then
+        sed -i "s/^FONT=.*/FONT=${CONSOLE_FONT}/" /etc/vconsole.conf
+        echo "CF-XZ6 fix: FONT default8x16 -> ${CONSOLE_FONT} (HiDPI)"
+    elif ! grep -q "^FONT=" /etc/vconsole.conf 2>/dev/null; then
+        echo "FONT=${CONSOLE_FONT}" >> /etc/vconsole.conf
+    fi
+    setfont "${CONSOLE_FONT}" 2>/dev/null || setfont ter-132n 2>/dev/null || true
+fi
 
 if [ "$ARCHINSTALL_DONE" -eq 0 ]; then
     sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block filesystems fsck btrfs)/' /etc/mkinitcpio.conf || true

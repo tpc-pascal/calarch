@@ -165,8 +165,20 @@ post_install() {
         fi
     fi
     if [ "$live_mode" -eq 1 ]; then
-        if ! grep -q "^FONT=" /etc/vconsole.conf 2>/dev/null; then
+        if grep -q "^FONT=default8x16" /etc/vconsole.conf 2>/dev/null; then
+            sudo sed -i "s/^FONT=.*/FONT=ter-132n/" /etc/vconsole.conf 2>/dev/null || echo "FONT=ter-132n" | sudo tee -a /etc/vconsole.conf >/dev/null 2>&1 || true
+            log_info "CF-XZ6 fix: FONT default8x16 -> ter-132n (HiDPI)"
+        elif ! grep -q "^FONT=" /etc/vconsole.conf 2>/dev/null; then
             echo "FONT=ter-132n" | sudo tee -a /etc/vconsole.conf >/dev/null 2>&1 || true
+        fi
+        sudo setfont ter-132n 2>/dev/null || setfont ter-132n 2>/dev/null || true
+    else
+        # chroot mode: cung ep ter-132n neu archinstall de default8x16
+        if grep -q "^FONT=default8x16" "$mnt/etc/vconsole.conf" 2>/dev/null; then
+            sed -i "s/^FONT=.*/FONT=ter-132n/" "$mnt/etc/vconsole.conf" 2>/dev/null || echo "FONT=ter-132n" >> "$mnt/etc/vconsole.conf"
+            log_info "CF-XZ6 fix: $mnt/etc/vconsole.conf default8x16 -> ter-132n"
+        elif ! grep -q "^FONT=" "$mnt/etc/vconsole.conf" 2>/dev/null; then
+            echo "FONT=ter-132n" >> "$mnt/etc/vconsole.conf" 2>/dev/null || true
         fi
     fi
 

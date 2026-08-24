@@ -52,7 +52,7 @@ bash <(curl -s https://tpc-pascal.github.io/calarch/install)
 ```
 
 Script tự kết nối mạng (hỏi SSID/password nếu chưa có) → archinstall TUI (bạn tự đặt
-disk, hostname, user, bootloader) → chọn Exit → calarch post-install tự động.
+disk (`sda1` ESP giữ, `sda9` Btrfs CF-XZ6), hostname, **1 user thường (vd pascal) + password — KHONG chi root**, bootloader `rEFInd + uki:true`, font `ter-132n` HiDPI) → chọn Exit → calarch post-install tự động (bundle `~/calarch`).
 
 > **Fallback:** `bash <(curl -s https://raw.githubusercontent.com/tpc-pascal/calarch/main/bootstrap.sh)`
 >
