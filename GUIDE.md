@@ -2,7 +2,7 @@
 
 > ⚠️ **Repo này chỉ hỗ trợ Panasonic CF-XZ6 (CFXZ6-1 / i5-7300U / HD Graphics 620). Không khuyến nghị dùng trên máy khác.**
 
-> Phiên bản mới nhất: v1.0.17 — CF-XZ6 only, GUIDE 100% snapper troubleshooting, rotator/stylus, uki/rEFInd/TUI fixes
+> Phiên bản mới nhất: v1.0.18 — CF-XZ6 only, HiDPI font fix + user advisory + calarch location docs
 
 -----------------------------------------------------------------------
 
@@ -58,12 +58,13 @@ bash <(curl -s https://tpc-pascal.github.io/calarch/install)
 | Filesystem | **Btrfs** | calarch tối ưu cho Btrfs; ext4/xfs vẫn cài được (boot bình thường) |
 | Bootloader | **rEFInd** (CF-XZ6 dùng `uki:true`, `/boot` = ESP `sda1` 512MiB) | systemd-boot cũng được |
 | Btrfs Snapshots | **None** nếu bạn đã tự tạo subvol `@snapshots` (6 subvol CF-XZ6) — calarch tự tạo snapper sau | Chọn **Snapper** → **xoá** `@snapshots` khỏi danh sách subvol trước khi cài |
-| User | **Phải tạo user thường** (không chỉ root) | Quên → calarch hỏi chạy lại hoặc tạo giúp |
+| User | **BAT BUOC tao 1 user thường (vd pascal) + password — KHONG chi dat root password** | Root-only → God-Mode nam o `/root/calarch`, phai login root, kho hieu — calarch se hoi chay lai archinstall [Y] |
 | Kết thúc | **Exit** (KHÔNG chọn Reboot) | Reboot sẽ thoát luôn khỏi quy trình |
 
 > **Ghi chú CF-XZ6:**
-> - Hostname, user và password do **bạn tự đặt trong archinstall** — calarch không ghi đè
+> - Hostname, user và password do **bạn tự đặt trong archinstall** — calarch không ghi đè. **Khuyen: luon tao 1 user thuong (vd pascal), dung lam nhu root-only** (chi dat root password se phai login root moi thay `~/calarch`).
 > - Disk CF-XZ6 mặc định: `sda1` ESP 512MiB giữ nguyên (dual-boot Windows), `sda9` Btrfs 68GB CF-XZ6 preset 6 subvol `@/@home/@snapshots/@cache/@log/@pkg` `compress=zstd`
+> - **Vi tri calarch sau reboot:** `~/calarch` da bundle san vao `/home/<user>/calarch` (tu USB, khong can mang/git). Kiem tra: `ls ~/calarch && cat ~/calarch/bootstrap.sh | grep VERSION`. Login root-only → nam o `/root/calarch` (kho hieu).
 > - **Snapper:** đã tự tạo `@snapshots` → chọn **Btrfs Snapshots = None**; nếu chọn **Snapper** trong archinstall thì xoá `@snapshots` khỏi danh sách trước khi cài (calarch sẽ tự `snapper create-config` sau).
 > - Console font mặc định `ter-132n` (phù hợp HiDPI CF-XZ6), có thể chọn font khác khi chạy bootstrap
 > - Kernel params CF-XZ6 (`i915.enable_fbc/psr/rc6`, `mitigations=off`, `pcie_aspm=force` cho HD620/7300U) áp dụng cho **mọi bootloader** ngay lúc cài
@@ -298,6 +299,26 @@ Máy sẽ reboot luôn trước khi calarch kịp chạy post-install. Xử lý:
 
 - Hệ thống **vẫn boot bình thường** — calarch tự phát hiện và không ép `rootflags=subvol=@`
 - Kernel params tinh chỉnh (i915, mitigations...) chỉ áp dụng **đủ** khi dùng rEFInd; hệ thống chưa có Btrfs thì một số tính năng (snapshot) bị bỏ qua
+
+### Chữ nhỏ đau mắt sau reboot — CF-XZ6 HiDPI
+
+Bạn chọn `Console font = default8x16` (8x16) trong archinstall hoặc giữ default → chữ bé trên CF-XZ6. **v1.0.18+ tự ép `ter-132n` (24pt):**
+
+```bash
+cat /etc/vconsole.conf  # phai co FONT=ter-132n
+sudo sed -i "s/^FONT=.*/FONT=ter-132n/" /etc/vconsole.conf 2>/dev/null || echo "FONT=ter-132n" | sudo tee -a /etc/vconsole.conf
+sudo setfont ter-132n
+# hoac chroot tu USB: sed -i "s/^FONT=.*/FONT=ter-132n/" /mnt/etc/vconsole.conf
+```
+
+Lần cài sau: trong `bootstrap.sh` chọn **1) ter-132n [CF-XZ6 khuyến nghị]** (đừng chọn Keep default).
+
+### Chỉ tạo root, quên tạo user (root-only) — KHUYEN KHONG LAM
+
+Bạn chỉ đặt root password, không tạo user thường → `~/calarch` nằm ở `/root/calarch`, phải login `root` mới thấy God-Mode (khó hiểu).
+
+- **Khắc phục:** tạo 1 user thường (vd `pascal`) trong archinstall. Nếu đã cài root-only, chạy lại archinstall (`Y`) hoặc để calarch tạo giúp (`c` → user `pascal`).
+- **Vị trí calarch sau reboot:** luôn ở `/home/<user>/calarch` (đã bundle từ USB, không cần mạng). Root-only → `/root/calarch`. Kiểm tra: `ls ~/calarch && cat ~/calarch/README.md | head`.
 
 ### rEFInd không thấy Arch
 

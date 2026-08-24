@@ -119,7 +119,7 @@ Sửa đồng bộ **3 chỗ**:
 - `start.sh` → `echo "calarch <version>"` (dòng ~103)
 - `GUIDE.md` → dòng tagline "Phiên bản mới nhất: v<version>" (dòng 3)
 
-Ví dụ: v1.0.16 → v1.0.17 sửa cả `bootstrap.sh:15`, `start.sh:103`, `GUIDE.md:3`.
+Ví dụ: v1.0.17 → v1.0.18 sửa cả `bootstrap.sh:15`, `start.sh:103`, `GUIDE.md:3`.
 
 ---
 
